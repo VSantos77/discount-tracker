@@ -1,2 +1,2 @@
-# promotion-tracker
-Keep track of promotions for different subscriptions
+# discount-tracker
+Keep track of discounts for different subscriptions

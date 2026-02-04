@@ -1,1 +1,5 @@
 .venv/
+test/
+.python-version
+*/output/
+__pychache__/

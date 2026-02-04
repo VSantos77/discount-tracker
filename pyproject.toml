@@ -1,9 +1,11 @@
 [project]
-name = "promotion-tracker"
+name = "discount-tracker"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "datetime>=6.0",
+    "regex>=2026.1.15",
     "scrapy>=2.14.1",
 ]
