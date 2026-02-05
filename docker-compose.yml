@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: discount_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"  # Allows you to connect from DBeaver/PGAdmin on Windows
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d/
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: discount_pgadmin
+    restart: always
+    environment:
+      # These are the credentials you'll use to LOG IN to pgAdmin in your browser
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "8080:80"  # Browse to http://localhost:8080 to see the UI
+    depends_on:
+      - db
+
+  scraper:
+    image: VSantos77/discount-tracker-scraper:1.0
+    build: .
+    container_name: discount_scraper
+    depends_on:
+      - db
+    environment:
+      # Crucial: We use 'db' as the hostname, not localhost!
+      - DB_HOST=db
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    volumes:  
+      - .:/app  # Maps your code so you don't have to rebuild for every 
+
+volumes:
+  postgres_data:

@@ -3,3 +3,4 @@ test/
 .python-version
 */output/
 __pychache__/
+.env
