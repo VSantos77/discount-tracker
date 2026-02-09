@@ -80,7 +80,7 @@ class GaliciaSpider(scrapy.Spider):
         loader.add_value('discount_rate', data.get('porcentajeAhorro', None))
         loader.add_value('discount_max_discount_amount', data.get('topeReintegro', None))
         loader.add_value('discount_min_purchase_amount', None)
-        loader.add_value('discount_no_interest_installment_qty', data.get('cuotasSinInteresHasta', None))
+        loader.add_value('discount_no_interest_installment_qty', data.get('cuotaSinInteresHasta', None))
         loader.add_value('discount_valid_days_list', data.get('diasAplicacion', None))
         loader.add_value('discount_valid_online', data.get('tiendaOnline', None))
         loader.add_value('discount_valid_instore', data.get('tiendaFisica', None))

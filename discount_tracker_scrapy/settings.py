@@ -6,6 +6,14 @@
 #     https://docs.scrapy.org/en/latest/topics/settings.html
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+import os
+
+DB_HOST = os.getenv('DB_HOST')
+DB_NAME = os.getenv('DB_NAME')
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_PORT = os.getenv('DB_PORT', 5432)
+
 
 BOT_NAME = "discount_tracker_scrapy"
 
@@ -60,6 +68,7 @@ DOWNLOAD_DELAY = 1
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
    "discount_tracker_scrapy.pipelines.CheckMandatoryFieldsPipeline": 300,
+   "discount_tracker_scrapy.pipelines.SendToPostgresPipeline": 800,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
