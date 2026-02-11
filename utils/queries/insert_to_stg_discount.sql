@@ -1,4 +1,4 @@
-INSERT INTO discounts (
+INSERT INTO stg_discounts (
     issuer_name, merchant_name, discount_start_date, discount_end_date,
     discount_payment_method, discount_rate, discount_no_interest_installment_qty,
     discount_name, discount_description, discount_url, discount_terms_and_conditions,
@@ -13,6 +13,3 @@ INSERT INTO discounts (
     %(discount_valid_days_list)s, %(discount_valid_online)s, %(discount_valid_instore)s, 
     %(discount_metadata)s
 )
-ON CONFLICT (discount_url) DO UPDATE SET
-    discount_end_date = EXCLUDED.discount_end_date,
-    scraped_at = CURRENT_TIMESTAMP;

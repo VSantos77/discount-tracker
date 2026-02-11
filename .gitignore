@@ -1,6 +1,5 @@
 .venv/
 test/
-.python-version
-*/output/
-__pychache__/
+**/output/
+**/__pycache__/
 .env

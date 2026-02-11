@@ -4,6 +4,7 @@ import psycopg2
 from scrapy.exceptions import NotConfigured
 from itemadapter import ItemAdapter
 from scrapy.exceptions import DropItem
+from utils.scripts.get_project_root_path import get_project_root_path
 
 class CheckMandatoryFieldsPipeline:
     MANDATORY_FIELDS = [
@@ -38,19 +39,19 @@ class SendToPostgresPipeline:
     def from_crawler(cls, crawler):
         # 1. Get DB settings
         db_settings = {
-            'host': crawler.settings.get('DB_HOST', 'db'),
+            'host': crawler.settings.get('DB_HOST'),
             'database': crawler.settings.get('DB_NAME'),
             'user': crawler.settings.get('DB_USER'),
             'password': crawler.settings.get('DB_PASSWORD'),
-            'port': crawler.settings.get('DB_PORT', 5432),
+            'port': crawler.settings.get('DB_PORT'),
         }
 
         if not db_settings['database']:
             raise NotConfigured("Database settings not found in environment")
 
         # 2. Load the SQL file
-        # We assume the file is in a 'queries' folder in your project root
-        sql_path = os.path.join(os.path.dirname(__file__), 'queries', 'insert_discount.sql')
+        sql_path = get_project_root_path() / "utils" / "queries" / "insert_to_stg_discount.sql"
+
         with open(sql_path, 'r') as f:
             sql_query = f.read()
 

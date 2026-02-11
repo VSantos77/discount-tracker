@@ -26,10 +26,10 @@ services:
     depends_on:
       - db
 
-  scraper:
-    image: VSantos77/discount-tracker-scraper:1.0
+  orchestrator:
+    image: discount-tracker-orchestrator:1.0
     build: .
-    container_name: discount_scraper
+    container_name: discount_orchestrator
     depends_on:
       - db
     environment:
@@ -39,7 +39,8 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
     volumes:  
-      - .:/app  # Maps your code so you don't have to rebuild for every 
+      - .:/app  # Maps your code so you don't have to rebuild for every
+    command: /bin/bash
 
 volumes:
   postgres_data:
