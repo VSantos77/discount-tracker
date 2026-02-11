@@ -68,6 +68,7 @@ DOWNLOAD_DELAY = 1
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
    "discount_tracker_scrapy.pipelines.CheckMandatoryFieldsPipeline": 300,
+   "discount_tracker_scrapy.pipelines.EnsureFullSchemaPipeline" : 400,
    "discount_tracker_scrapy.pipelines.SendToPostgresPipeline": 800,
 }
 

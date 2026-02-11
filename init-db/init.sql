@@ -36,6 +36,20 @@ CREATE TABLE IF NOT EXISTS dim_merchants (
     name TEXT NOT NULL UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS dim_payment_methods_raw (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    CONSTRAINT unique_payment_method UNIQUE (name, type)
+);
+
+CREATE TABLE IF NOT EXISTS map_discount_payment_methods (
+    ID SERIAL PRIMARY KEY,
+    discount_id UUID NOT NULL,
+    payment_method_id INTEGER NOT NULL,
+    CONSTRAINT unique_discount_payment_combination UNIQUE (discount_id, payment_method_id)
+)
+
 CREATE TABLE IF NOT EXISTS fct_discounts (
     -- IDS
     id UUID PRIMARY KEY,
@@ -62,7 +76,6 @@ CREATE TABLE IF NOT EXISTS fct_discounts (
     min_purchase_amount DECIMAL(12, 2),
     
     -- JSON
-    payment_method JSONB NOT NULL,
     valid_days_list JSONB,
     metadata JSONB,
     

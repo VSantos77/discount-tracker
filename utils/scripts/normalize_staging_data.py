@@ -32,6 +32,20 @@ def normalize_data():
 
         cur.execute(sql_query)
 
+        # Add payment methods to raw
+        print("Normalizing Payment Methods...")
+        with open(get_project_root_path() / "utils" / "queries" / "insert_to_dim_payment_methods_raw.sql", 'r') as f:
+            sql_query = f.read() 
+
+        cur.execute(sql_query)
+
+        # Populate map_dim_payment_methods
+        print("Mapping Discount to Payment Methods...")
+        with open(get_project_root_path() / "utils" / "queries" / "insert_to_map_dim_payment_methods.sql", 'r') as f:
+            sql_query = f.read() 
+
+        cur.execute(sql_query)
+
         # Move data to fct_discounts by joining with the new IDs
         print("Populating Fact Table...")
 

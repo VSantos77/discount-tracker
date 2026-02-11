@@ -3,3 +3,4 @@ test/
 **/output/
 **/__pycache__/
 .env
+logs

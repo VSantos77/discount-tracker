@@ -35,6 +35,7 @@ class SendToPostgresPipeline:
         self.connection = None
         self.cursor = None
 
+    # Executes before the pipeline's __init__ method
     @classmethod
     def from_crawler(cls, crawler):
         # 1. Get DB settings
@@ -56,6 +57,7 @@ class SendToPostgresPipeline:
             sql_query = f.read()
 
         return cls(db_settings, sql_query)
+            
 
     def open_spider(self, spider):
         self.connection = psycopg2.connect(**self.db_settings)
@@ -64,20 +66,16 @@ class SendToPostgresPipeline:
     def process_item(self, item, spider):
         adapter = ItemAdapter(item)
         
-        # 1. Get the list of all fields defined in your items.py dynamically
-        # This ensures no field is omitted, even if it's NULL/missing
-        all_defined_fields = item.fields.keys()
-        
-        # 2. Create a dict with every field; missing ones default to None
-        clean_data = {field: adapter.get(field) for field in all_defined_fields}
+        if getattr(spider, 'dry_run', '').lower() in ('true', '1'):
+            # Avoid sending to postgres but return item so next pipeline can handle
+            return item
 
-        # 3. Serialize your JSON fields (now safe because keys are guaranteed)
         for json_field in ['discount_valid_days_list', 'discount_metadata', 'discount_payment_method']:
-            if clean_data.get(json_field) is not None:
-                clean_data[json_field] = json.dumps(clean_data[json_field])
+            if adapter.get(json_field) is not None:
+                adapter[json_field] = json.dumps(adapter[json_field])
 
         try:
-            self.cursor.execute(self.sql_query, clean_data)
+            self.cursor.execute(self.sql_query, adapter.asdict())
             self.connection.commit()
         except Exception as e:
             spider.logger.error(f"Postgres Error: {e}")
@@ -88,3 +86,19 @@ class SendToPostgresPipeline:
     def close_spider(self, spider):
         if self.cursor: self.cursor.close()
         if self.connection: self.connection.close()
+
+class EnsureFullSchemaPipeline:
+    """
+    Ensures that every field defined in the Item exists in the output,
+    setting missing fields to None.
+    """
+    def process_item(self, item, spider):
+        adapter = ItemAdapter(item)
+        
+        # item.fields is a dict of all fields defined in your Item class
+        for field_name in item.fields:
+            if field_name not in adapter:
+                # This ensures the key exists for the JSON Exporter and Postgres
+                adapter[field_name] = None
+                
+        return item
