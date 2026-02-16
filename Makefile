@@ -6,9 +6,9 @@ up:
 down:
 	docker-compose down
 
-# Run the Galicia Spider
-crawl-galicia:
-	docker-compose run --rm orchestrator uv run scrapy crawl galicia $(SCRAPER_ARGS)
+# Run Spider
+crawl:
+	docker-compose run --rm orchestrator uv run scrapy crawl $(SCRAPER_ARGS)
 # Run the Normalization Script
 normalize:
 	docker-compose run --rm orchestrator uv run python -m utils.scripts.normalize_staging_data

@@ -60,8 +60,12 @@ class SendToPostgresPipeline:
             
 
     def open_spider(self, spider):
-        self.connection = psycopg2.connect(**self.db_settings)
-        self.cursor = self.connection.cursor()
+
+        if getattr(spider, 'dry_run', '').lower() in ('true', '1'):
+            spider.logger.info("Dry run mode enabled - skipping Postgres connection")
+        else:
+            self.connection = psycopg2.connect(**self.db_settings)
+            self.cursor = self.connection.cursor()
 
     def process_item(self, item, spider):
         adapter = ItemAdapter(item)
@@ -84,8 +88,12 @@ class SendToPostgresPipeline:
         return item
 
     def close_spider(self, spider):
-        if self.cursor: self.cursor.close()
-        if self.connection: self.connection.close()
+
+        if getattr(spider, 'dry_run', '').lower() in ('true', '1'):
+            pass
+        else:
+            if self.cursor: self.cursor.close()
+            if self.connection: self.connection.close()
 
 class EnsureFullSchemaPipeline:
     """

@@ -7,6 +7,7 @@ import scrapy
 from scrapy.loader import ItemLoader
 import datetime
 from itemloaders.processors import TakeFirst, MapCompose, Identity
+from re import search
 
 class DiscountItem(scrapy.Item):
 
@@ -87,3 +88,51 @@ class GaliciaDiscountLoader(ItemLoader):
     discount_no_interest_installment_qty_in = MapCompose(lambda x: int(x) if x is not None else None)
 
     discount_valid_online_in = MapCompose(lambda x: bool(x) if x is not None else None)
+
+class BBVADiscountLoader(ItemLoader):
+    @staticmethod
+    def normalize_valid_days(value):        
+        if isinstance(value, str):
+            value_list = value.split(',')
+
+            if len(value_list) == 7:
+                return [[index for index, is_active in enumerate(value_list) if is_active == '1']]
+        return [list(range(0,7))]
+    
+    @staticmethod
+    def get_payment_method(value):
+        if isinstance(value, str):
+
+            return {
+                'card': 'all',
+                'card_type': 'credito'
+            }            
+    
+    @staticmethod
+    def parse_discount_rate(value):
+        if len(value) > 0:
+            match = search('(\d+(?:[.,]\d+)?)\s*%', value)
+            if match:
+                return float(match.group(1)) / 100
+        
+        return 0
+
+    @staticmethod
+    def parse_merchant_name(value):
+        if isinstance(value, str):
+            match = search('^(.+?)(?=\s+\d+\s*(?:%|cuotas))', value)
+            if match:
+                return match.group(1).strip()
+        return None
+
+    default_output_processor = TakeFirst()
+    default_input_processor = Identity()
+
+    discount_valid_days_list_in = MapCompose(normalize_valid_days)
+    discount_valid_online_in = MapCompose(lambda x: x > 0)
+    discount_valid_instore_in = MapCompose(lambda x: x > 0)
+
+    discount_rate_in = MapCompose(parse_discount_rate)
+
+    merchant_name_in = MapCompose(parse_merchant_name)
+    discount_payment_method_in = MapCompose(get_payment_method)
