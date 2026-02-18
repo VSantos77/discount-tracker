@@ -44,7 +44,7 @@ class SendToPostgresPipeline:
             'database': crawler.settings.get('DB_NAME'),
             'user': crawler.settings.get('DB_USER'),
             'password': crawler.settings.get('DB_PASSWORD'),
-            'port': crawler.settings.get('DB_PORT'),
+            'port': crawler.settings.get('POSTGRES_DB_PORT'),
         }
 
         if not db_settings['database']:

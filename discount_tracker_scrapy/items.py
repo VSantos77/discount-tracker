@@ -136,3 +136,4 @@ class BBVADiscountLoader(ItemLoader):
 
     merchant_name_in = MapCompose(parse_merchant_name)
     discount_payment_method_in = MapCompose(get_payment_method)
+    discount_payment_method_out = Identity()

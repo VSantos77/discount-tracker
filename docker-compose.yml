@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5432:5432"  # Allows you to connect from DBeaver/PGAdmin on Windows
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d/
@@ -22,7 +22,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     ports:
-      - "8080:80"  # Browse to http://localhost:8080 to see the UI
+      - "8080:80"
     depends_on:
       - db
 
@@ -33,13 +33,13 @@ services:
     depends_on:
       - db
     environment:
-      # Crucial: We use 'db' as the hostname, not localhost!
-      - DB_HOST=db
+      - DB_HOST=${DB_HOST}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB_PORT=${POSTGRES_DB_PORT}
     volumes:  
-      - .:/app  # Maps your code so you don't have to rebuild for every
+      - .:/app
       - /app/.venv # Avoid volume conflicts with the virtual environment
     command: /bin/bash
 

@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: staging
+    description: "Raw discount data scraped from issuers websites"
+    database: discounts_db
+    schema: public
+    tables:
+      - name: stg_discounts
+        description: "Staging table for raw discount data"
