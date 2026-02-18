@@ -7,7 +7,6 @@ class GaliciaSpider(scrapy.Spider):
     allowed_domains = ["loyalty.bff.bancogalicia.com.ar"]
     custom_settings = {
         'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'ROBOTSTXT_OBEY': False, # APIs usually don't have robots.txt
         'CONCURRENT_REQUESTS': 5, # Be gentle with bank APIs to avoid IP bans
         'DOWNLOAD_DELAY': 1,      # 1 second between requests
     }
@@ -86,6 +85,6 @@ class GaliciaSpider(scrapy.Spider):
         loader.add_value('discount_valid_instore', data.get('tiendaFisica', None))
         loader.add_value('discount_metadata', data)
         loader.add_value('discount_payment_method', data.get('mediosDePago', {}))
-        loader.add_value('discount_merchant_category', data.get('marca', {}).get('categoria', {}).get('descripcion'))
+        loader.add_value('merchant_category_name', data.get('marca', {}).get('categoria', {}).get('descripcion'))
 
         yield loader.load_item()

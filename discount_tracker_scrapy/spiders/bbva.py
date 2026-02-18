@@ -1,5 +1,6 @@
 import scrapy
 from discount_tracker_scrapy.items import DiscountItem, BBVADiscountLoader
+from scrapy.exceptions import CloseSpider
 
 class BBVASpider(scrapy.Spider):
     name = "bbva"
@@ -19,13 +20,35 @@ class BBVASpider(scrapy.Spider):
             raise(ValueError("page_limit must be an integer"))
 
     # Starting with Page 1 of the catalog
-    base_catalog_url = "https://go.bbva.com.ar/willgo/fgo/API/v3/communications?&pager={}"
+    base_catalog_url = "https://go.bbva.com.ar/willgo/fgo/API/v3/communications?&pager={}&rubros={}"
     detail_api_url = "https://go.bbva.com.ar/willgo/fgo/API/v3/communication/{}"
     discount_url = 'https://www.bbva.com.ar/beneficios/beneficio?id={}'
+    category_url = 'https://go.bbva.com.ar/willgo/fgo/API/v3/rubros/filtro'
 
     def start_requests(self):
-        # Start the crawl at page 1
-        yield scrapy.Request(url=self.base_catalog_url.format(1), callback=self.parse_catalog, meta={'page': 1})
+        # Get category list
+        yield scrapy.Request(url=self.category_url, callback=self.parse_categories)
+
+    def parse_categories(self, response):
+        self.logger.info("Parsing categories")
+
+        # If the response is not 200, stop the spider with an error
+        if response.status != 200:
+            raise CloseSpider(reason=f"Failed to fetch categories: HTTP {response.status}")
+                    
+        categories_ls = response.json()['rubros']
+
+        for category in categories_ls:
+
+            category_id = category.get('idRubro')
+            category_name = category.get('nombre')
+
+            # Yield one request for each category, starting with page 1
+            yield scrapy.Request(
+                url=self.base_catalog_url.format(1, category_id),
+                meta={'category_name': category_name, 'page': 1},
+                callback=self.parse_catalog,
+            )
 
     def parse_catalog(self, response):
 
@@ -34,13 +57,15 @@ class BBVASpider(scrapy.Spider):
         if not discounts:
             self.logger.info("No more discounts found. Stopping.")
             return
-
+        
+        # Parse some basic info
         for discount in discounts:
             discount_data = {}
             discount_data['discount_id'] = discount.get('id')
             discount_data['discount_start_date'] = discount.get('fechaDesde')
             discount_data['discount_end_date'] = discount.get('fechaHasta')
             discount_data['subcabecera'] = discount.get('subcabecera')
+            discount_data['category_name'] = response.meta['category_name']
 
             if discount_data['discount_id']:
                 # Dispatch a request for the specific details of this discount
@@ -52,15 +77,16 @@ class BBVASpider(scrapy.Spider):
 
         current_page = response.meta['page']
 
+        # Generate request for next page if we haven't reached the page limit
         if self.page_limit and current_page >= self.page_limit:
             self.logger.info(f"Reached page limit: {self.page_limit}")
             return
         else:
             next_page = current_page + 1
             yield scrapy.Request(
-                url=self.base_catalog_url.format(next_page),
+                url=self.base_catalog_url.format(next_page, response.meta['category_name']),
                 callback=self.parse_catalog,
-                meta={'page': next_page}
+                meta={'page': next_page, 'category_name': response.meta['category_name']}
             )
 
     def parse_details(self, response):
@@ -88,5 +114,6 @@ class BBVASpider(scrapy.Spider):
         loader.add_value('discount_valid_instore', len(data.get('canalesVenta').get('sucursales')))
         loader.add_value('discount_metadata', data)
         loader.add_value('discount_payment_method', data.get('grupoTarjeta'))
+        loader.add_value('merchant_category_name', response.meta['category_name'])
 
         yield loader.load_item()

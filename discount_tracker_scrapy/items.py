@@ -31,7 +31,7 @@ class DiscountItem(scrapy.Item):
     discount_valid_online = scrapy.Field()
     discount_valid_instore = scrapy.Field()
     discount_metadata = scrapy.Field()
-    discount_merchant_category = scrapy.Field()
+    merchant_category_name = scrapy.Field()
 
 class GaliciaDiscountLoader(ItemLoader):
     @staticmethod
