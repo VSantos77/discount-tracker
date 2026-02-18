@@ -31,46 +31,50 @@ class DiscountItem(scrapy.Item):
     discount_valid_online = scrapy.Field()
     discount_valid_instore = scrapy.Field()
     discount_metadata = scrapy.Field()
-
-def format_date(value):
-    """
-    Format date from 'dd/mm/yyyy' to 'yyyy-mm-dd'
-    
-    :param value: input value
-    """
-    try:
-        dt = datetime.datetime.strptime(value, '%d/%m/%Y')
-        return dt.strftime('%Y-%m-%d')
-    except Exception:
-        return value
-    
-def format_payment_methods(value):
-    """
-    Format payment methods as a dict of card and card_type.
-        
-    :param value: input dict
-    """
-
-    return {
-        'card': value.get('tarjeta', ''),
-        'card_type': value.get('tipoTarjeta', '')
-    }
-
-def parse_valid_dates(value):
-    """
-    Format valid dates string into list of weekday integers
-        
-    :param value: input string
-    """
-     
-    day_map = {
-        'Lu': 0, 'Ma': 1, 'Mi': 2, 'Ju': 3, 
-        'Vi': 4, 'Sa': 5, 'Do': 6
-    }
-
-    return [day_map.get(day, -1) for day in value.split(';') if day in day_map]
+    discount_merchant_category = scrapy.Field()
 
 class GaliciaDiscountLoader(ItemLoader):
+    @staticmethod
+    def format_date(value):
+        """
+        Format date from 'dd/mm/yyyy' to 'yyyy-mm-dd'
+        
+        :param value: input value
+        """
+        try:
+            dt = datetime.datetime.strptime(value, '%d/%m/%Y')
+            return dt.strftime('%Y-%m-%d')
+        except Exception:
+            return value
+    
+    @staticmethod
+    def format_payment_methods(value):
+        """
+        Format payment methods as a dict of card and card_type.
+            
+        :param value: input dict
+        """
+
+        return {
+            'card': value.get('tarjeta', ''),
+            'card_type': value.get('tipoTarjeta', '')
+        }
+
+    @staticmethod
+    def parse_valid_dates(value):
+        """
+        Format valid dates string into list of weekday integers
+            
+        :param value: input string
+        """
+        
+        day_map = {
+            'Lu': 0, 'Ma': 1, 'Mi': 2, 'Ju': 3, 
+            'Vi': 4, 'Sa': 5, 'Do': 6
+        }
+
+        return [day_map.get(day, -1) for day in value.split(';') if day in day_map]
+    
     default_output_processor = TakeFirst()
 
     discount_start_date_in = MapCompose(format_date)

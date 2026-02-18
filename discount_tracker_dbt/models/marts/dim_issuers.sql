@@ -19,5 +19,5 @@ SELECT
 FROM distinct_issuers
 
 {% if is_incremental() %}
-    WHERE issuer_name NOT IN (SELECT name FROM {{ this }})
+    WHERE issuer_name NOT IN (SELECT issuer_name FROM {{ this }})
 {% endif %}

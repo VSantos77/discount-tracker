@@ -86,5 +86,6 @@ class GaliciaSpider(scrapy.Spider):
         loader.add_value('discount_valid_instore', data.get('tiendaFisica', None))
         loader.add_value('discount_metadata', data)
         loader.add_value('discount_payment_method', data.get('mediosDePago', {}))
+        loader.add_value('discount_merchant_category', data.get('marca', {}).get('categoria', {}).get('descripcion'))
 
         yield loader.load_item()
