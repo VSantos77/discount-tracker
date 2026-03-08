@@ -17,9 +17,12 @@ test-crawl:
 normalize-python:
 	docker-compose run --rm orchestrator uv run python -m utils.scripts.normalize_staging_data
 # Run dbt
-normalize-dbt:
-	docker-compose run --rm orchestrator uv run dbt build --project-dir discount_tracker_dbt --profiles-dir discount_tracker_dbt
+dev-normalize-dbt:
+	docker-compose --env-file .env run --rm \
+	-e UV_LINK_MODE=copy \
+	orchestrator \
+	uv run dbt build --project-dir discount_tracker_dbt --profiles-dir discount_tracker_dbt \
+	--target dev_docker
 
 # The "Full Meal": Run crawl then normalize
 pipeline: crawl normalize-dbt
-

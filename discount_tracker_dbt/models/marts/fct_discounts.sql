@@ -25,7 +25,6 @@ select
     d.discount_id,
     i.issuer_id,
     m.merchant_id,
-    m.merchant_category_name,
     d.discount_start_date,
     d.discount_end_date,
     d.discount_rate,
