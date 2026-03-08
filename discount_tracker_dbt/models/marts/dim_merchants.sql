@@ -10,14 +10,21 @@ with source as (
 ),
 
 distinct_merchants as (
-    select distinct merchant_name from source where merchant_name is not null
+    select distinct 
+        merchant_name,
+        merchant_category_name 
+    from 
+        source 
+    where 
+        merchant_name is not null
 )
 
 SELECT 
     {{ dbt.hash("merchant_name") }} AS merchant_id,  -- Generates a unique string/hash
-    merchant_name
+    merchant_name,
+    merchant_category_name
 FROM distinct_merchants
 
 {% if is_incremental() %}
-    WHERE merchant_name NOT IN (SELECT merchant_name FROM {{ this }})
+    WHERE merchant_id NOT IN (SELECT merchant_id FROM {{ this }})
 {% endif %}

@@ -19,19 +19,13 @@ merchants as (
     select
         *
     from {{ ref('dim_merchants') }}
-),
-
-payment_method_mapping as (
-    select
-        *
-    from {{ ref('dim_payment_methods_discount_mapping') }}
 )
 
 select
     d.discount_id,
     i.issuer_id,
     m.merchant_id,
-    pmm.mapping_id as payment_method_mapping_id,
+    m.merchant_category_name,
     d.discount_start_date,
     d.discount_end_date,
     d.discount_rate,
@@ -50,7 +44,6 @@ select
 from discounts d
 join issuers i on d.issuer_name = i.issuer_name
 join merchants m on d.merchant_name = m.merchant_name
-join payment_method_mapping pmm on d.discount_id = pmm.discount_id
 
 {% if is_incremental() %}
     where d.discount_id not in (select discount_id from {{ this }})

@@ -11,9 +11,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Scrapy Spiders")
     # Define your arguments
     parser.add_argument("--page_limit", type=int, default=0, help="Set page limit for crawls")
-    parser.add_argument("--dry_run", type=str, default=0, help="Set dry run mode (1/0)")
+    parser.add_argument("--dry_run", type=str, default='false', help="Set dry run mode (1/0)")
+    parser.add_argument("--itemcount", type=int, default=0, help="Set item count limit for crawls")
 
     args = parser.parse_args()
+
+    if args.itemcount > 0:
+        settings.set('CLOSESPIDER_ITEMCOUNT', args.itemcount)
 
     # Loop through every spider in the project and schedule it
     for spider_name in loader.list():

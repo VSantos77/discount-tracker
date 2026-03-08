@@ -13,6 +13,7 @@ with source as (
         ]) }} AS discount_id,  -- Generates a unique text/hash based on multiple columns
         cast({{ adapter.quote("issuer_name") }} AS text) AS issuer_name,
         cast({{ adapter.quote("merchant_name") }} as text) as merchant_name,
+        cast({{ adapter.quote("merchant_category_name") }} as text) as merchant_category_name,
         cast({{ adapter.quote("discount_start_date") }} as date) as discount_start_date,
         cast({{ adapter.quote("discount_end_date") }} as date) as discount_end_date,
         cast({{ adapter.quote("discount_payment_method") }} as jsonb) as discount_payment_method,
