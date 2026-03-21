@@ -12,7 +12,7 @@ with source as (
 distinct_merchants as (
     select distinct 
         merchant_name,
-        merchant_category_name 
+        merchant_category_name
     from 
         source 
     where 
@@ -21,7 +21,7 @@ distinct_merchants as (
 
 final as (
     SELECT 
-        {{ dbt.hash("merchant_name") }} AS merchant_id,
+        {{ dbt_utils.generate_surrogate_key(["merchant_name", "merchant_category_name"]) }} AS merchant_id,
         merchant_name,
         merchant_category_name
     FROM distinct_merchants

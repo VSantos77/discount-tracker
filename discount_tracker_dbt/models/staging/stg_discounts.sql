@@ -6,6 +6,7 @@ with source as (
         {{ dbt_utils.generate_surrogate_key([
           'issuer_name',
           'merchant_name',
+          'merchant_category_name',
           'discount_start_date',
           'discount_end_date',
           'discount_rate',

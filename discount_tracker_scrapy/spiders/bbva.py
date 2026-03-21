@@ -5,11 +5,6 @@ from scrapy.exceptions import CloseSpider
 class BBVASpider(scrapy.Spider):
     name = "bbva"
     allowed_domains = ["go.bbva.com.ar", "bbva.com.ar"]
-    custom_settings = {
-        'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'CONCURRENT_REQUESTS': 5, # Be gentle with bank APIs to avoid IP bans
-        'DOWNLOAD_DELAY': 1,      # 1 second between requests
-    }
 
     def __init__(self, page_limit=None, *args, **kwargs):
         super(BBVASpider, self).__init__(*args, **kwargs)

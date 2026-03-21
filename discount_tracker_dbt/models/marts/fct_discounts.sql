@@ -10,7 +10,8 @@ with discounts_source as (
 ),
 
 discounts as (
-    -- Deduplicate incoming batch to prevent inserting duplicates that don't exist in target yet
+    -- Deduplicate incoming batch to prevent inserting duplicates
+    -- that don't exist in target yet
     select distinct on (discount_id) *
     from discounts_source
     order by discount_id, scraped_at desc
@@ -49,7 +50,8 @@ select
     d.scraped_at
 from discounts d
 join issuers i on d.issuer_name = i.issuer_name
-join merchants m on d.merchant_name = m.merchant_name
+join merchants m on d.merchant_name = m.merchant_name 
+    and d.merchant_category_name = m.merchant_category_name
 
 {% if is_incremental() %}
     where d.discount_id not in (select discount_id from {{ this }})
