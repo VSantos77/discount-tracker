@@ -3,10 +3,17 @@
     unique_key='discount_id'
 )}}
 
-with discounts as (
+with discounts_source as (
     select
         *
     from {{ ref('stg_discounts') }}
+),
+
+discounts as (
+    -- Deduplicate incoming batch to prevent inserting duplicates that don't exist in target yet
+    select distinct on (discount_id) *
+    from discounts_source
+    order by discount_id, scraped_at desc
 ),
 
 issuers as (

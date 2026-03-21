@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: fct_discounts
+    description: "Fact table for discounts, containing aggregated discount data for analysis"
+    columns:
+      - name: discount_id
+        data_tests:
+          - not_null
+          - unique
+  - name: dim_merchants
+    description: "Dimension table for merchants, containing information about the merchants offering discounts"
+    columns:
+      - name: merchant_id
+        data_tests:
+          - not_null
+          - unique
+  - name: dim_issuers
+    description: "Dimension table for issuers, containing information about the issuers offering discounts"
+    columns:
+      - name: issuer_id
+        data_tests:
+          - not_null
+          - unique
+  - name: dim_payment_methods
+    description: "Dimension table for payment methods, containing information about the payment methods used for discounts"
+    columns:
+      - name: payment_method_id
+        data_tests:
+          - not_null
+          - unique
