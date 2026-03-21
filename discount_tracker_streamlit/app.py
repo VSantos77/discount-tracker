@@ -3,6 +3,10 @@ import pandas as pd
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # 1. Page Configuration
 st.set_page_config(

@@ -509,28 +509,38 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "datetime" },
-    { name = "dbt" },
-    { name = "dbt-core" },
-    { name = "dbt-postgres" },
     { name = "dotenv" },
     { name = "psycopg2-binary" },
     { name = "regex" },
+]
+
+[package.dev-dependencies]
+orchestrator = [
+    { name = "dbt" },
+    { name = "dbt-core" },
+    { name = "dbt-postgres" },
     { name = "scrapy" },
+]
+streamlit = [
     { name = "streamlit" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "datetime", specifier = ">=6.0" },
-    { name = "dbt", specifier = ">=1.0.0.40.14" },
-    { name = "dbt-core", specifier = ">=1.11.6" },
-    { name = "dbt-postgres", specifier = ">=1.10.0" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "regex", specifier = ">=2026.1.15" },
-    { name = "scrapy", specifier = ">=2.14.1" },
-    { name = "streamlit", specifier = ">=1.55.0" },
 ]
+
+[package.metadata.requires-dev]
+orchestrator = [
+    { name = "dbt", specifier = ">=1.0.0.40.14" },
+    { name = "dbt-core", specifier = ">=1.11.6" },
+    { name = "dbt-postgres", specifier = ">=1.10.0" },
+    { name = "scrapy", specifier = ">=2.14.1" },
+]
+streamlit = [{ name = "streamlit", specifier = ">=1.55.0" }]
 
 [[package]]
 name = "dotenv"

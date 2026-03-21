@@ -26,9 +26,33 @@ services:
     depends_on:
       - db
 
+  streamlit:
+    image: discount-tracker-streamlit:1.0
+    build: 
+      context: .
+      target: streamlit
+    container_name: discount_streamlit
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB_PORT=${POSTGRES_DB_PORT}
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+      - /app/.venv
+    command: uv run streamlit run discount_tracker_streamlit/app.py --server.port 8501 --server.address 0.0.0.0
+
   orchestrator:
     image: discount-tracker-orchestrator:1.0
-    build: .
+    build: 
+      context: .
+      target: orchestrator
     container_name: discount_orchestrator
     depends_on:
       - db
