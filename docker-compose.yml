@@ -32,7 +32,7 @@ services:
       context: .
       target: streamlit
     container_name: discount_streamlit
-    restart: unless-stopped
+    restart: unless-stopped # Ensures app restarts in case of crash, but not if stopped manually
     depends_on:
       - db
     environment:
@@ -65,7 +65,7 @@ services:
     volumes:  
       - .:/app
       - /app/.venv # Avoid volume conflicts with the virtual environment
-    command: /bin/bash
+    command: sleep infinity
 
 volumes:
   postgres_data:

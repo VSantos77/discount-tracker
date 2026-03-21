@@ -26,3 +26,8 @@ dev-normalize-dbt:
 
 # The "Full Meal": Run crawl then normalize
 pipeline: crawl normalize-dbt
+
+run-orchestrator:
+	docker exec -it discount_orchestrator python orchestrate.py
+run-orchestrator-test:
+	docker exec -it discount_orchestrator python orchestrate.py --itemcount 5

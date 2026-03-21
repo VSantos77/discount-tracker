@@ -10,6 +10,9 @@ COPY pyproject.toml uv.lock /app/
 # (without installing the project -aka my code- itself yet)
 RUN uv sync --frozen --no-install-project
 
+# Add virtual environment to PATH so we can run 'dbt', 'streamlit', 'python' directly
+ENV PATH="/app/.venv/bin:$PATH"
+
 # 2. Orchestrator Stage
 FROM base AS orchestrator
 # Copy the rest of the source code
