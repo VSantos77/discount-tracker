@@ -75,6 +75,16 @@ class GaliciaDiscountLoader(ItemLoader):
 
         return [day_map.get(day, -1) for day in value.split(';') if day in day_map]
     
+    @staticmethod
+    def normalize_rate(value):
+        if value is None:
+            return None
+        try:
+            val = float(value)
+            return val / 100.0
+        except (ValueError, TypeError):
+            return None
+
     default_output_processor = TakeFirst()
 
     discount_start_date_in = MapCompose(format_date)
@@ -86,7 +96,7 @@ class GaliciaDiscountLoader(ItemLoader):
     discount_valid_days_list_in = MapCompose(parse_valid_dates)
     discount_valid_days_list_out = Identity()
 
-    discount_rate_in = MapCompose(lambda x: float(x) if x is not None else None)
+    discount_rate_in = MapCompose(normalize_rate)
     discount_max_discount_amount_in = MapCompose(lambda x: float(x) if x is not None else None)
     discount_min_purchase_amount_in = MapCompose(lambda x: float(x) if x is not None else None)
     discount_no_interest_installment_qty_in = MapCompose(lambda x: int(x) if x is not None else None)
@@ -115,7 +125,7 @@ class BBVADiscountLoader(ItemLoader):
     @staticmethod
     def parse_discount_rate(value):
         if len(value) > 0:
-            match = search('(\d+(?:[.,]\d+)?)\s*%', value)
+            match = search(r'(\d+(?:[.,]\d+)?)\s*%', value)
             if match:
                 return float(match.group(1)) / 100
         
@@ -124,7 +134,7 @@ class BBVADiscountLoader(ItemLoader):
     @staticmethod
     def parse_merchant_name(value):
         if isinstance(value, str):
-            match = search('^(.+?)(?=\s+\d+\s*(?:%|cuotas))', value)
+            match = search(r'^(.+?)(?=\s+\d+\s*(?:%|cuotas))', value)
             if match:
                 return match.group(1).strip()
         return None

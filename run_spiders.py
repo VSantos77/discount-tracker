@@ -2,11 +2,11 @@ from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 from scrapy.spiderloader import SpiderLoader
 import argparse
+import os
+import datetime
 
 if __name__ == "__main__":
     settings = get_project_settings()
-    process = CrawlerProcess(settings)
-    loader = SpiderLoader.from_settings(settings)
 
     parser = argparse.ArgumentParser(description="Run Scrapy Spiders")
     # Define your arguments
@@ -16,8 +16,22 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # --- Configure Logging to File ---
+    log_dir = "logs/scrapy"
+    os.makedirs(log_dir, exist_ok=True)
+    
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_file = os.path.join(log_dir, f"scrapy_{timestamp}.log")
+    
+    settings.set('LOG_FILE', log_file)
+    settings.set('LOG_LEVEL', 'DEBUG')
+    print(f"🕷️  Logs will be saved to: {log_file}")
+
     if args.itemcount > 0:
         settings.set('CLOSESPIDER_ITEMCOUNT', args.itemcount)
+
+    process = CrawlerProcess(settings)
+    loader = SpiderLoader.from_settings(settings)
 
     # Loop through every spider in the project and schedule it
     for spider_name in loader.list():
@@ -25,10 +39,3 @@ if __name__ == "__main__":
         process.crawl(spider_name, **vars(args))
 
     process.start()
-
-
-
-
-
-
-
