@@ -25,7 +25,7 @@ if __name__ == "__main__":
     log_file = os.path.join(log_dir, f"scrapy_{timestamp}.log")
     
     settings.set('LOG_FILE', log_file)
-    settings.set('LOG_LEVEL', 'DEBUG')
+    settings.set('LOG_LEVEL', 'INFO')
     print(f"🕷️  Logs will be saved to: {log_file}")
 
     if args.itemcount > 0:

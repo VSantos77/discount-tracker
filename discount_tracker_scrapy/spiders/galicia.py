@@ -64,7 +64,17 @@ class GaliciaSpider(scrapy.Spider):
         loader = GaliciaDiscountLoader(item=DiscountItem(), response=response)
 
         loader.add_value('issuer_name', "Banco Galicia")
-        loader.add_value('merchant_name', data.get('marca', {}).get('nombre', None))
+        
+        # Handle discounts for entire categories (e.g all electronics shops)
+        if data.get('tipoPromocion') == 'Categoria':
+            merchant_name = data.get('categoria', {}).get('descripcion')
+            category_name = merchant_name
+        else:
+            merchant_name = data.get('marca').get('nombre', None)
+            category_name = data.get('marca', {}).get('categoria', {}).get('descripcion')
+        
+        loader.add_value('merchant_name', merchant_name)
+        loader.add_value('merchant_category_name', category_name)
         loader.add_value('discount_name', None)
         loader.add_value('discount_description', data.get('descripcionAdicional', None))
         loader.add_value('discount_url', None)
@@ -80,6 +90,5 @@ class GaliciaSpider(scrapy.Spider):
         loader.add_value('discount_valid_instore', data.get('tiendaFisica', None))
         loader.add_value('discount_metadata', data)
         loader.add_value('discount_payment_method', data.get('mediosDePago', {}))
-        loader.add_value('merchant_category_name', data.get('marca', {}).get('categoria', {}).get('descripcion'))
 
         yield loader.load_item()

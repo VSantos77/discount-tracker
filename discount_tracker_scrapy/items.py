@@ -134,7 +134,8 @@ class BBVADiscountLoader(ItemLoader):
     @staticmethod
     def parse_merchant_name(value):
         if isinstance(value, str):
-            match = search(r'^(.+?)(?=\s+\d+\s*(?:%|cuotas))', value)
+            # Extract merchant name
+            match = search(r'^(.+?)(?=\s+\d+\s*(?:%|cuotas)|\s+Beneficio exclusivo|$)', value)
             if match:
                 return match.group(1).strip()
         return None
