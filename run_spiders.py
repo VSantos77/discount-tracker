@@ -10,6 +10,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run Scrapy Spiders")
     # Define your arguments
+    parser.add_argument("--spiders", type=str, default='', help="Comma-separated list of spiders to run (default: all)")
     parser.add_argument("--page_limit", type=int, default=0, help="Set page limit for crawls")
     parser.add_argument("--dry_run", type=str, default='false', help="Set dry run mode (1/0)")
     parser.add_argument("--itemcount", type=int, default=0, help="Set item count limit for crawls")
@@ -33,8 +34,21 @@ if __name__ == "__main__":
     process = CrawlerProcess(settings)
     loader = SpiderLoader.from_settings(settings)
 
+    # Spider arg parsing
+    if args.spiders:
+        spider_names = [name.strip() for name in args.spiders.split(',')]
+        valid_spider_names = []
+        for spider_name in spider_names:
+            if spider_name not in loader.list():
+                print(f"❌ Spider '{spider_name}' not found. Available spiders: {loader.list()}")
+            else:
+                valid_spider_names.append(spider_name)
+    else:
+        valid_spider_names = loader.list()
+        print(f"🚀 No specific spiders provided. All available spiders will be run: {valid_spider_names}")
+    
     # Loop through every spider in the project and schedule it
-    for spider_name in loader.list():
+    for spider_name in valid_spider_names:
         print(f'Starting crawl for spider: {spider_name}')
         process.crawl(spider_name, **vars(args))
 

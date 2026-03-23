@@ -33,6 +33,8 @@ class BBVASpider(scrapy.Spider):
                     
         categories_ls = response.json()['rubros']
 
+        self.logger.info('Categories to be parsed: {}'.format([cat.get('nombre') for cat in categories_ls]))
+
         for category in categories_ls:
 
             category_id = category.get('idRubro')
