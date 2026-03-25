@@ -40,6 +40,13 @@ def main():
 
     # 2. Run dbt Build (runs models, tests, snapshots, seeds)
     # We target 'dev_docker' which uses the env vars from docker-compose
+
+    # First run dbt deps
+
+    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "deps", "--project-dir", "discount_tracker_dbt", "--profiles-dir", "discount_tracker_dbt", "--target", "dev_docker"]
+    run_step(dbt_args, "dbt Deps")
+
+    # Then run dbt build
     dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "build", "--project-dir", "discount_tracker_dbt", "--profiles-dir", "discount_tracker_dbt", "--target", "dev_docker"]
     run_step(dbt_args, "dbt Build")
 
