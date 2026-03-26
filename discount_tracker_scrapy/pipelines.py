@@ -5,6 +5,7 @@ from scrapy.exceptions import NotConfigured
 from itemadapter import ItemAdapter
 from scrapy.exceptions import DropItem
 from utils.functions import get_project_root_path
+from utils.configs import DB_SETTINGS
 
 class CheckMandatoryFieldsPipeline:
     MANDATORY_FIELDS = [
@@ -30,7 +31,7 @@ class CheckMandatoryFieldsPipeline:
 
 class SendToPostgresPipeline:
     def __init__(self, db_settings, sql_query):
-        self.db_settings = db_settings
+        self.db_settings = DB_SETTINGS
         self.sql_query = sql_query # Store the query string here
         self.connection = None
         self.cursor = None
@@ -38,16 +39,8 @@ class SendToPostgresPipeline:
     # Executes before the pipeline's __init__ method
     @classmethod
     def from_crawler(cls, crawler):
-        # 1. Get DB settings
-        db_settings = {
-            'host': crawler.settings.get('DB_HOST'),
-            'database': crawler.settings.get('DB_NAME'),
-            'user': crawler.settings.get('DB_USER'),
-            'password': crawler.settings.get('DB_PASSWORD'),
-            'port': crawler.settings.get('POSTGRES_DB_PORT'),
-        }
 
-        if not db_settings['database']:
+        if not DB_SETTINGS['database']:
             raise NotConfigured("Database settings not found in environment")
 
         # 2. Load the SQL file
@@ -56,7 +49,7 @@ class SendToPostgresPipeline:
         with open(sql_path, 'r') as f:
             sql_query = f.read()
 
-        return cls(db_settings, sql_query)
+        return cls(DB_SETTINGS, sql_query)
             
 
     def open_spider(self, spider):

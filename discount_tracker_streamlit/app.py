@@ -1,12 +1,7 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import os
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from utils.functions import get_db_connection
+from utils.configs import DB_SETTINGS
 
 # 1. Page Configuration
 st.set_page_config(
@@ -14,22 +9,6 @@ st.set_page_config(
     page_icon="💸", 
     layout="wide"
 )
-
-# 2. Database Connection Logic
-def get_db_connection():
-    # Fetching from your existing Env Vars
-    try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            database=os.getenv("DB_NAME", "postgres"),
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", ""),
-            port=os.getenv("POSTGRES_DB_PORT", "5432")
-        )
-        return conn
-    except Exception as e:
-        st.error(f"Error connecting to database: {e}")
-        return None
 
 # 3. Data Loading (Cached to avoid hitting DB on every filter click)
 @st.cache_data(ttl=600) # Cache for 10 minutes

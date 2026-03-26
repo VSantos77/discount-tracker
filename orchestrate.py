@@ -1,24 +1,13 @@
 from run_spiders import execute_crawls
 from utils.functions import get_db_connection
 from utils.functions import get_project_root_path
-from dotenv import load_dotenv
+from utils.configs import DB_SETTINGS
+from utils.configs import DBT_PROJECT_DIR
 import subprocess
 import sys
 import time
 import os
 import argparse
-
-load_dotenv()
-
-DB_SETTINGS = {
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("POSTGRES_DB_PORT"),
-    "database": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD")
-}
-
-DBT_PROJECT_DIR = "discount_tracker_dbt"
 
 def run_step(command, step_name):
     print(f"\n🚀 --- Starting: {step_name} ---")
