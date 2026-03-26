@@ -1,55 +1,69 @@
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 from scrapy.spiderloader import SpiderLoader
+from scrapy import signals
+from scrapy.signalmanager import dispatcher
 import argparse
 import os
 import datetime
 
-if __name__ == "__main__":
+def execute_crawls(spiders='', itemcount=0, page_limit=0, dry_run='false'):
+    """
+    Main entry point for orchestrate.py to run spiders and get stats back.
+    """
+    spider_crawl_stats = {} # Changed to dict for easier lookup in orchestrate
+
+    def spider_results(spider, reason):
+        stats = spider.crawler.stats.get_stats()
+        # Store just the relevant bits for the monitor
+        spider_crawl_stats[spider.name] = {
+            'start_time': stats.get('start_time', ''),
+            'finish_time': stats.get('finish_time', ''),
+            "count": stats.get('item_scraped_count', 0),
+            "reason": reason,
+            "runtime": stats.get('elapsed_time_seconds', 0)
+        }
+        print(f"✅ {spider.name} finished: {spider_crawl_stats[spider.name]['count']} items.")
+
     settings = get_project_settings()
 
-    parser = argparse.ArgumentParser(description="Run Scrapy Spiders")
-    # Define your arguments
-    parser.add_argument("--spiders", type=str, default='', help="Comma-separated list of spiders to run (default: all)")
-    parser.add_argument("--page_limit", type=int, default=0, help="Set page limit for crawls")
-    parser.add_argument("--dry_run", type=str, default='false', help="Set dry run mode (1/0)")
-    parser.add_argument("--itemcount", type=int, default=0, help="Set item count limit for crawls")
-
-    args = parser.parse_args()
-
-    # --- Configure Logging to File ---
+    # --- Configure Logging ---
     log_dir = "logs/scrapy"
     os.makedirs(log_dir, exist_ok=True)
-    
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    log_file = os.path.join(log_dir, f"scrapy_{timestamp}.log")
-    
-    settings.set('LOG_FILE', log_file)
+    settings.set('LOG_FILE', os.path.join(log_dir, f"scrapy_{timestamp}.log"))
     settings.set('LOG_LEVEL', 'INFO')
-    print(f"🕷️  Logs will be saved to: {log_file}")
 
-    if args.itemcount > 0:
-        settings.set('CLOSESPIDER_ITEMCOUNT', args.itemcount)
+    if itemcount > 0:
+        settings.set('CLOSESPIDER_ITEMCOUNT', itemcount)
 
     process = CrawlerProcess(settings)
     loader = SpiderLoader.from_settings(settings)
-
-    # Spider arg parsing
-    if args.spiders:
-        spider_names = [name.strip() for name in args.spiders.split(',')]
-        valid_spider_names = []
-        for spider_name in spider_names:
-            if spider_name not in loader.list():
-                print(f"❌ Spider '{spider_name}' not found. Available spiders: {loader.list()}")
-            else:
-                valid_spider_names.append(spider_name)
+    
+    # Logic to filter spiders
+    if spiders:
+        spider_names = [name.strip() for name in spiders.split(',')]
+        valid_spider_names = [n for n in spider_names if n in loader.list()]
     else:
         valid_spider_names = loader.list()
-        print(f"🚀 No specific spiders provided. All available spiders will be run: {valid_spider_names}")
     
-    # Loop through every spider in the project and schedule it
+    # Schedule crawls
     for spider_name in valid_spider_names:
-        print(f'Starting crawl for spider: {spider_name}')
-        process.crawl(spider_name, **vars(args))
+        # Pass parameters directly to the spider
+        process.crawl(spider_name, itemcount=itemcount, page_limit=page_limit, dry_run=dry_run)
 
-    process.start()
+    dispatcher.connect(spider_results, signal=signals.spider_closed)
+
+    process.start() # Blocks until all spiders are done
+    return spider_crawl_stats
+
+# This allows you to still run it manually from the terminal
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run Scrapy Spiders")
+    parser.add_argument("--spiders", type=str, default='')
+    parser.add_argument("--itemcount", type=int, default=0)
+    args = parser.parse_args()
+    
+    # Call the function with command line args
+    results = execute_crawls(spiders=args.spiders, itemcount=args.itemcount)
+    print("Final Results:", results)
