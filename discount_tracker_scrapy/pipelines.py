@@ -4,7 +4,7 @@ import psycopg2
 from scrapy.exceptions import NotConfigured
 from itemadapter import ItemAdapter
 from scrapy.exceptions import DropItem
-from utils.scripts.get_project_root_path import get_project_root_path
+from utils.functions import get_project_root_path
 
 class CheckMandatoryFieldsPipeline:
     MANDATORY_FIELDS = [

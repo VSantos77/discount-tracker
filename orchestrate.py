@@ -1,6 +1,6 @@
 from run_spiders import execute_crawls
 from utils.functions import get_db_connection
-from utils.scripts.get_project_root_path import get_project_root_path
+from utils.functions import get_project_root_path
 from dotenv import load_dotenv
 import subprocess
 import sys
