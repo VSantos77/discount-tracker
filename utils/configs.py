@@ -11,4 +11,5 @@ DB_SETTINGS = {
     "password": os.getenv("DB_PASSWORD")
 }
 
-DBT_PROJECT_DIR = "discount_tracker_dbt"
+DBT_PROJECT_DIR = os.getenv("DBT_PROJECT_DIR")
+DBT_PROFILES_DIR = os.getenv("DBT_PROFILES_DIR")

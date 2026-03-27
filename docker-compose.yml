@@ -64,8 +64,10 @@ services:
       - POSTGRES_DB_PORT=${POSTGRES_DB_PORT}
     volumes:  
       - .:/app
-      - /app/.venv # Avoid volume conflicts with the virtual environment
+      - /app/.venv                                                 # Avoid volume conflicts with the virtual environment
+      - dbt_packages_volume:/app/discount_tracker_dbt/dbt_packages # Separate volume for dbt_packages to avoid conflicts
     command: sleep infinity
 
 volumes:
   postgres_data:
+  dbt_packages_volume:

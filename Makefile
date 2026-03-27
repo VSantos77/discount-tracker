@@ -1,24 +1,22 @@
+# Start everything from scratch
+start:
+	docker-compose up --build -d
+
 # Start Infrastructure
 up:
 	docker-compose up -d
 
-# Stop everything
+# Stop everything	
 down:
 	docker-compose down
 
 # Run orchestrator (Scrapy + DBT)
-run-orchestrator:
-	docker exec -it discount_orchestrator python orchestrate.py
+run-orchestrator-prod:
+	docker exec -it discount_orchestrator python orchestrate.py --dbt-target=prod
 
-# Test run orchestrator (short Scrapy crawl + DBT)
+# Test run orchestrator (short Scrapy crawl + DBT using dev target)
 run-orchestrator-test:
-	docker exec -it discount_orchestrator python orchestrate.py --itemcount 5
-
-# Run dbt build
-run-dbt-build:
-	docker exec -it discount_orchestrator dbt build --target=dev_docker --profiles-dir=discount_tracker_dbt --project-dir=discount_tracker_dbt
-
-
+	docker exec -it discount_orchestrator python orchestrate.py --itemcount=5 --dbt-target=dev_docker
 
 
 	

@@ -35,13 +35,19 @@ def main():
     parser.add_argument("--itemcount", type=int, default=0, help="Pass item count limit to spiders")
     parser.add_argument("--spiders", type=str, default='', help="Comma-separated list of spiders to run (default: all)")
     parser.add_argument("--dry-run",type=str, default='0', help="Run spiders in dry-run mode (no items scraped)")
+    parser.add_argument("--dbt-target", type=str, default='dev_docker', help="dbt target to use (default: dev_docker)")
+    
     args = parser.parse_args()
 
     print("🎼 Starting Orchestration Pipeline...")
     
     # 1. Run Scrapy Spiders (using your existing runner)
     try:
-        crawl_results = execute_crawls(**vars(args))
+        crawl_results = execute_crawls(
+            itemcount=args.itemcount,
+            spiders=args.spiders,
+            dry_run=args.dry_run
+        )
 
         with open(get_project_root_path() / "utils" / "queries" / "insert_to_scrapy_run_stats.sql", 'r') as f:
             insert_query = f.read()
@@ -73,11 +79,11 @@ def main():
 
     # First run dbt deps
 
-    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "deps", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR, "--target", "dev_docker"]
+    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "deps", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR, "--target", args.dbt_target]
     run_step(dbt_args, "dbt Deps")
 
     # Then run dbt build
-    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "build", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR, "--target", "dev_docker"]
+    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "build", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR, "--target", args.dbt_target]
     run_step(dbt_args, "dbt Build")
 
 if __name__ == "__main__":
