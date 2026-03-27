@@ -1,3 +1,3 @@
 SELECT 
     * 
-FROM dbt_dev.streamlit_data
+FROM dbt_prod.streamlit_data
