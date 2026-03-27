@@ -16,13 +16,18 @@ st.set_page_config(
 # Data Loading
 @st.cache_data(ttl=600)
 def load_discount_data():
-    with get_db_connection(DB_SETTINGS) as conn:
-        with conn.cursor() as cur:
-            with open(get_project_root_path() / 'utils' / 'queries' / 'streamlit_data.sql') as f:
-                query = f.read()
-            df = pd.read_sql(query, conn)
-    return df
-
+    try:
+        with get_db_connection(DB_SETTINGS) as conn:
+            with conn.cursor() as cur:
+                with open(get_project_root_path() / 'utils' / 'queries' / 'streamlit_data.sql') as f:
+                    query = f.read()
+                df = pd.read_sql(query, conn)
+        return df
+    except Exception as e:
+        st.error(
+            f"Error al cargar datos: {e}"
+        )
+        return pd.DataFrame()  # Return empty DataFrame on error
 
 # Helper Functions
 def truncate_text(text, max_length=150):
@@ -66,7 +71,7 @@ def get_validity(row):
 
 # --- PAGE: DISCOUNT DASHBOARD ---
 def page_dashboard():
-    st.title("📊 Dashboard")
+    st.title("Dashboard")
     st.markdown("Resumen general de los descuentos disponibles.")
 
     chart_font_color = "#1A202C"
@@ -391,7 +396,7 @@ def page_explorer():
 
 # --- Navigation ---
 pg = st.navigation([
-    st.Page(page_dashboard, title="Dashboard", icon="📊"),
-    st.Page(page_explorer, title="Explorador de descuentos", icon="🔍"),
+    st.Page(page_dashboard, title="Dashboard", icon=":material/dashboard:"),
+    st.Page(page_explorer, title="Explorador de descuentos", icon=":material/search:"),
 ])
 pg.run()
