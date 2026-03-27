@@ -9,8 +9,9 @@ Install these tools first:
 1. Docker Desktop (with Docker Compose v2)
 2. Git
 3. GNU Make (optional, only if you want to use `make` shortcuts)
+- Suggested way on Windows: install **chocolatey** package manager. Then run `choco install make`.
 
-Quick checks:
+Quick checks in bash terminal:
 
 ```bash
 docker --version
@@ -40,7 +41,7 @@ Use this as a working local example:
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME=discount_tracker
-DB_HOST=db
+DB_HOST=discount_db
 POSTGRES_DB_PORT=5432
 
 PGADMIN_EMAIL=admin@local.dev
@@ -49,7 +50,7 @@ PGADMIN_PASSWORD=admin123
 
 Notes:
 
-1. `DB_HOST=db` is the Docker Compose service name for Postgres.
+1. `DB_HOST=discount_db` is the Docker Compose service name for Postgres.
 2. `POSTGRES_DB_PORT=5432` is used by the app to connect to Postgres.
 3. If your local Postgres already uses 5432 and conflicts, stop it or adjust port mappings in `docker-compose.yml`.
 
@@ -58,7 +59,7 @@ Notes:
 Option A: with Make
 
 ```bash
-make up
+make start
 ```
 
 Option B: plain Docker Compose
@@ -94,12 +95,6 @@ Short test run (limited Scrapy crawl):
 
 ```bash
 make run-orchestrator-test
-```
-
-Run dbt only:
-
-```bash
-make run-dbt-build
 ```
 
 ## 7. Open Local Apps

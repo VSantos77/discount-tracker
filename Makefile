@@ -16,7 +16,4 @@ run-orchestrator-prod:
 
 # Test run orchestrator (short Scrapy crawl + DBT using dev target)
 run-orchestrator-test:
-	docker exec -it discount_orchestrator python orchestrate.py --itemcount=5 --dbt-target=dev_docker
-
-
-	
+	docker exec -it discount_orchestrator python orchestrate.py --itemcount=5 --dbt-target=prod
