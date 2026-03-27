@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils.functions import get_db_connection
+from utils.functions import get_project_root_path
 from utils.configs import DB_SETTINGS
 
 # 1. Page Configuration
@@ -13,15 +14,15 @@ st.set_page_config(
 # 3. Data Loading (Cached to avoid hitting DB on every filter click)
 @st.cache_data(ttl=600) # Cache for 10 minutes
 def load_discount_data():
-    conn = get_db_connection()
-    if conn:
-        # We use a standard SQL query. 
-        # Replace 'fct_discounts' with your actual dbt output table name.
-        query = "SELECT * FROM dbt_dev.streamlit_data"
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df
-    return pd.DataFrame()
+    with get_db_connection(DB_SETTINGS) as conn:
+        with conn.cursor() as cur:  
+            with open(get_project_root_path() / 'utils' / 'queries' / 'streamlit_data.sql') as f:
+                query = f.read()
+
+            df = pd.read_sql(query, conn)
+    
+    return df
+    
 
 # 4. Helper Functions
 def truncate_text(text, max_length=150):
