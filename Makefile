@@ -1,14 +1,14 @@
 # Start everything from scratch
 start:
-	docker-compose up --build -d
+	docker compose up --build -d
 
 # Start Infrastructure
 up:
-	docker-compose up -d
+	docker compose up -d
 
 # Stop everything	
 down:
-	docker-compose down
+	docker compose down
 
 # Run orchestrator (Scrapy + DBT)
 run-orchestrator-prod:
