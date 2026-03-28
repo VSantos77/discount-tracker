@@ -39,3 +39,17 @@ resource "google_compute_firewall" "allow_postgres" {
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["streamlit-port"]
 }
+
+# Allow SSH traffic (port 22)
+resource "google_compute_firewall" "allow_ssh" {
+  name    = "allow-ssh-22"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["streamlit-port"]
+}

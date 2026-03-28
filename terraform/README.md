@@ -78,6 +78,7 @@ terraform output ssh_command
 gcloud compute instances tail-serial-port-output [VM_NAME] --zone=[ZONE] --port=1
 
 # Change into ubuntu user to run make commands
+sudo -iu ubuntu
 ```
 
 ## What Gets Created
