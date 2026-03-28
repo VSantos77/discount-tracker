@@ -20,6 +20,8 @@ If you found yourself in the above situations, then you're like me and you'd lov
 
 ### Key Features:
 
+**IMPORTANT NOTICE**: tool UI is in Spanish (since it's meant to be used in Argentina). If you don't speak spanish, I suggest using Google's built in web translation service: I tried it and works pretty well!
+
 - 📱 **Browse Discounts**: Explore all available discounts in an easy-to-use interface
 - 🔍 **Smart Filtering**: Filter by:
   - Bank/Issuer (BBVA, Galicia, etc.)
