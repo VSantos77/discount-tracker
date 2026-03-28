@@ -133,6 +133,12 @@ nano .env
 docker compose up --build
 ```
 
+13. Run orchestrator (you may need to restart the streamlit container for cache to clear)
+
+```bash
+make run-orchestrator-test
+```
+
 ---
 
 ## Shutdown and cleanup
