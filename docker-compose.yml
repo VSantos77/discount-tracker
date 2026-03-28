@@ -41,6 +41,7 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB_PORT=${POSTGRES_DB_PORT}
+      - UV_LINK_MODE=${UV_LINK_MODE}
     ports:
       - "8501:8501"
     volumes:
@@ -62,6 +63,9 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB_PORT=${POSTGRES_DB_PORT}
+      - DBT_PROFILES_DIR=${DBT_PROFILES_DIR}
+      - DBT_PROJECT_DIR=${DBT_PROJECT_DIR}
+      - UV_LINK_MODE=${UV_LINK_MODE}
     volumes:  
       - .:/app
       - /app/.venv                                                 # Avoid volume conflicts with the virtual environment

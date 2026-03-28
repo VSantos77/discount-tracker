@@ -40,19 +40,24 @@ Use this as a working local example:
 ```dotenv
 DB_USER=postgres
 DB_PASSWORD=postgres
-DB_NAME=discount_tracker
+DB_NAME=discounts_db
 DB_HOST=discount_db
 POSTGRES_DB_PORT=5432
 
 PGADMIN_EMAIL=admin@local.dev
 PGADMIN_PASSWORD=admin123
+
+DBT_PROFILES_DIR=discount_tracker_dbt
+DBT_PROJECT_DIR=discount_tracker_dbt
+UV_LINK_MODE=copy
 ```
 
 Notes:
 
 1. `DB_HOST=discount_db` is the Docker Compose service name for Postgres.
 2. `POSTGRES_DB_PORT=5432` is used by the app to connect to Postgres.
-3. If your local Postgres already uses 5432 and conflicts, stop it or adjust port mappings in `docker-compose.yml`.
+3. `DBT_PROFILES_DIR` and `DBT_PROJECT_DIR` are required by the orchestrator when it runs dbt commands.
+4. If your local Postgres already uses 5432 and conflicts, stop it or adjust port mappings in `docker-compose.yml`.
 
 ## 4. Build and Start Services
 
@@ -88,7 +93,7 @@ You should see all 4 containers up.
 Run full orchestrator pipeline:
 
 ```bash
-make run-orchestrator
+make run-orchestrator-prod
 ```
 
 Short test run (limited Scrapy crawl):
@@ -167,7 +172,7 @@ Fix:
 
 Fix:
 
-1. Run `make run-orchestrator`.
+1. Run `make run-orchestrator-prod`.
 2. Refresh Streamlit page.
 
 ## 11. Recommended First-Run Flow

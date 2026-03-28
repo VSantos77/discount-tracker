@@ -1,199 +1,109 @@
 # Cloud Development Guide
 
-This guide covers the deployment and management of the Discount Tracker on Google Cloud Platform (GCP). GCP is chosen for its reliable free tier for small VMs.
+This guide covers deployment and operations for Discount Tracker on Google Cloud Platform (GCP), using Terraform as the source of truth.
 
 ---
 
-## 1. Initial Setup
+## 1. Prerequisites
 
-1. **Install Google Cloud CLI**: Run the official installer.
-2. **Authenticate**:
+Install and verify:
 
-```bash
-gcloud init
-```
+1. Google Cloud CLI
+2. Terraform
+3. A GCP project with billing enabled
 
-3. **Create Project**:
-
-```bash
-gcloud projects create [PROJECT_NAME]
-```
-
-4. **Set Active Project**:
+Authenticate:
 
 ```bash
-gcloud config set project [PROJECT_NAME]
-```
-
-> Note: Keep project and account context updated before running infra commands.
-
-## 2. Infrastructure Provisioning
-
-### Create VM Instance
-
-We use an `e2-micro` instance in `us-east1-c` to stay within the free tier.
-
-```bash
-gcloud compute instances create discount-tracker-vm \
-    --zone=us-east1-c \
-    --machine-type=e2-micro \
-    --image-family=ubuntu-2204-lts \
-    --image-project=ubuntu-os-cloud \
-    --boot-disk-size=30GB \
-    --tags=http-server,streamlit-port
-```
-
-6. Allow firewall access to Streamlit app (and postgres, optionally)
-
-```bash
-# Allow Streamlit traffic
-gcloud compute firewall-rules create allow-streamlit-8501 \
-    --direction=INGRESS \
-    --priority=1000 \
-    --network=default \
-    --action=ALLOW \
-    --rules=tcp:8501 \
-    --source-ranges=0.0.0.0/0 \
-    --target-tags=streamlit-port
-
-# Allow PG Admin traffic
-
-cloud compute firewall-rules create allow-pgadmin --allow tcp:8080 --target-tags=streamlit-port
-
-# Allow Postgres traffic (Optional: only if you want direct access)
-gcloud compute firewall-rules create allow-postgres \
-    --allow tcp:5432 \
-    --target-tags=streamlit-port
-```
-
-7. First time only: Access the VM to create a fake extra 2 GB of RAM
-
-```bash
-gcloud compute ssh discount-tracker-vm
-```
-
-```bash
-# Create a 2GB file for swap
-sudo fallocate -l 2G /swapfile                              # Create a 2GB file
-sudo chmod 600 /swapfile                                    # Set permissions to read/write only
-sudo mkswap /swapfile                                       # Create a swap file
-sudo swapon /swapfile                                       # Activate swap file
-
-# Make it permanent so it survives reboots
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-
-# Verify it worked (you should see 'Swap: 2.0Gi')
-free -h
-```
-
-> Note: This is a first-time setup step for low-memory environments.
-
-8. Install Docker
-
-```bash
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Allow your user to run docker without 'sudo'
-sudo usermod -aG docker $USER
-# IMPORTANT: Log out and log back in for this to take effect!
-exit
-```
-
-9. Install uv
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.cargo/env
-```
-
-10. Clone git repo (using PAT for auth)
-
-```bash
-git clone [REPO_URL]
-```
-
-11. Create .env file
-
-Copy .env-example to .env.
-
-```bash
-cp .env-example .env
-```
-
-Fill in the .env using nano:
-
-```bash
-nano .env
-```
-
-12. Start and build docker images
-
-```bash
-docker compose up --build
-```
-
-13. Run orchestrator (you may need to restart the streamlit container for cache to clear)
-
-```bash
-make run-orchestrator-test
+gcloud auth application-default login
+gcloud config set project <PROJECT_ID>
 ```
 
 ---
 
-## Shutdown and cleanup
+## 2. Provision Infrastructure (Terraform)
 
-1. Shut down containers
-
-```bash
-docker compose down
-```
-
-2. Stop the VM
+From the project root:
 
 ```bash
-gcloud compute instances stop [VM_NAME] --zone=[ZONE]
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
 ```
 
-e.g
+Edit terraform.tfvars and set:
+
+1. project_id
+2. zone, machine_type (optional overrides)
+3. github_repo_url
+4. env_file_content (full .env content)
+
+Important env vars for orchestrator/dbt:
+
+1. DB_HOST
+2. DB_NAME
+3. DB_USER
+4. DB_PASSWORD
+5. POSTGRES_DB_PORT
+6. DBT_PROFILES_DIR
+7. DBT_PROJECT_DIR
+8. UV_LINK_MODE
+
+Apply infrastructure:
 
 ```bash
-gcloud compute instances stop discount-tracker-vm --zone=us-east1-c
+terraform init
+terraform plan
+terraform apply
 ```
 
-This prevents the VM from consuming RAM and CPU. You are only billed for disk space used to store code.
-This does NOT DELETE the VM. It just stops it.
+Terraform provisions:
 
-3. Check (STATUS should = TERMINATED)
-
-```bash
-gcloud compute instances list
-```
+1. Compute Engine VM
+2. Firewall rules (Streamlit, pgAdmin, Postgres, SSH)
+3. Startup script bootstrap (swap, Docker, uv, make, repo clone, docker compose up)
 
 ---
 
-## Resuming work
+## 3. Monitor Startup Script
 
-1. Start the VM
-
-```bash
-gcloud compute instances start discount-tracker-vm --zone=us-east1-c
-```
-
-2. Access VM
+From your local machine:
 
 ```bash
-gcloud compute ssh discount-tracker-vm
+gcloud compute instances tail-serial-port-output discount-tracker-vm --zone=<ZONE> --port=1
 ```
 
-3. Start the Docker containers
+From inside VM:
+
+```bash
+sudo journalctl -u google-startup-scripts.service -f
+```
+
+Exit log stream with Ctrl+C.
+
+---
+
+## 4. Access and Run Pipeline
+
+SSH into VM:
+
+```bash
+gcloud compute ssh discount-tracker-vm --zone=<ZONE>
+```
+
+Switch to ubuntu user:
+
+```bash
+sudo -iu ubuntu
+```
+
+Run pipeline:
 
 ```bash
 cd ~/discount-tracker
-docker compose up -d
+make run-orchestrator-test
 ```
 
-4. Check containers are running:
+Verify containers:
 
 ```bash
 docker ps
@@ -201,32 +111,62 @@ docker ps
 
 ---
 
-## Misc
+## 5. Apply Config Changes Safely
 
-Set up account for auth
+When you edit any Terraform-managed setting (terraform.tfvars, startup script, firewall, VM config):
 
 ```bash
-gcloud config set account [ACCOUNT_EMAIL]
+cd terraform
+terraform apply
 ```
 
-## Setting up cron schedule
+If startup behavior must rerun immediately:
 
 ```bash
-# Enter crontab edit mode
+gcloud compute instances reset discount-tracker-vm --zone=<ZONE>
+```
+
+---
+
+## 6. Stop, Start, Destroy
+
+Stop VM (keep disk/data):
+
+```bash
+gcloud compute instances stop discount-tracker-vm --zone=<ZONE>
+```
+
+Start VM again:
+
+```bash
+gcloud compute instances start discount-tracker-vm --zone=<ZONE>
+```
+
+Destroy all Terraform-managed resources:
+
+```bash
+cd terraform
+terraform destroy
+```
+
+---
+
+## 7. Optional Cron Schedule
+
+On VM:
+
+```bash
 crontab -e
 ```
 
-Add these lines at the end:
+Add:
 
-```
-# Existing text
-
-0 0 * * * /usr/bin/docker exec discount_orchestrator python /app/orchestrate.py --itemcount 10 >> /home/santiago_villaverde07/logs/cron/sync_$(date +\%Y-\%m-\%d).log 2>&1
+```cron
+0 0 * * * /usr/bin/docker exec discount_orchestrator python /app/orchestrate.py --itemcount 10 >> /home/ubuntu/logs/cron/sync_$(date +\%Y-\%m-\%d).log 2>&1
 ```
 
-This sets up a cron schedule to run at midnight (UTC) and dump logs to a file.
+Ensure logs path exists:
 
-Create the logs folder to prevent errors:
 ```bash
-mkdir -p /home/santiago_villaverde07/logs/cron
+mkdir -p /home/ubuntu/logs/cron
 ```

@@ -17,3 +17,7 @@ run-orchestrator-prod:
 # Test run orchestrator (short Scrapy crawl + DBT using dev target)
 run-orchestrator-test:
 	docker exec -it discount_orchestrator python orchestrate.py --itemcount=5 --dbt-target=prod
+
+# Run dbt build separately (production)
+run-dbt-build-prod:
+	docker compose exec -it orchestrator uv run --group orchestrator dbt build --project-dir=discount_tracker_dbt --profiles-dir=discount_tracker_dbt --target=prod

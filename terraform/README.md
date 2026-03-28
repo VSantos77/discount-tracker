@@ -25,6 +25,7 @@ This directory contains Terraform configurations to automate the provisioning of
    - `project_id`: Your GCP project ID
    - `github_repo_url`: Your GitHub repo URL (with authentication token if private)
    - `env_file_content`: Your `.env` file variables
+   - `machine_type`: set up your machine size
 
 3. **Initialize Terraform**:
    ```bash
@@ -77,17 +78,17 @@ terraform output ssh_command
 # See VM serial console stream for debugging
 gcloud compute instances tail-serial-port-output [VM_NAME] --zone=[ZONE] --port=1
 
-# Change into ubuntu user to run make commands
+# Change into ubuntu user to run make commands inside VM
 sudo -iu ubuntu
 ```
 
 ## What Gets Created
 
-✅ **VM Instance** - `e2-micro` Ubuntu 22.04 LTS  
+✅ **VM Instance** - Ubuntu 22.04 LTS (configurable machine type)  
 ✅ **Boot Disk** - 30GB persistent storage  
-✅ **Firewall Rules** - Streamlit (8501), PGAdmin (8080), Postgres (5432)  
+✅ **Firewall Rules** - Streamlit (8501), PGAdmin (8080), Postgres (5432), SSH (22)  
 ✅ **Public IP** - Ephemeral external IP address  
-✅ **Auto-provisioning** - Docker, uv, swap, and Docker Compose startup via cloud-init
+✅ **Auto-provisioning** - Docker, uv, make, swap, and Docker Compose startup via cloud-init
 
 ## Security Notes
 
@@ -101,7 +102,7 @@ sudo -iu ubuntu
 ### VM not starting applications
 Check the startup script logs:
 ```bash
-gcloud compute instances get-serial-port-output discount-tracker-vm --zone=us-east1-c
+gcloud compute instances get-serial-port-output discount-tracker-vm --zone=<ZONE>
 ```
 
 ### Docker Compose not running
@@ -116,15 +117,3 @@ Verify rules are created:
 ```bash
 gcloud compute firewall-rules list --filter="name~'allow-'"
 ```
-
-## Next Steps
-
-- Add [remote state storage](https://www.terraform.io/language/settings/backends/gcs) for team collaboration
-- Set up [GitHub Actions](https://github.com/hashicorp/setup-terraform) for CI/CD deployments
-- Configure [Terraform variable files](https://www.terraform.io/language/values/variables#variable-definitions-tfvars-files) per environment (dev, prod)
-
-## Questions or Issues?
-
-Refer to:
-- [Terraform Google Provider Docs](https://registry.terraform.io/providers/hashicorp/google/latest/docs)
-- [GCP Compute Instance Documentation](https://cloud.google.com/compute/docs/instances)

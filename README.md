@@ -1,6 +1,6 @@
 # 💸 Discount Tracker
 
-A smart discount aggregation tool that tracks and presents available discounts across different financial institutions in Argentina. Browse, filter, and discover the best deals for your subscriptions in one centralized dashboard.
+A smart discount aggregation tool that tracks and presents available discounts across different financial institutions in Argentina. Browse, filter, and discover the best deals across shops in one centralized dashboard.
 
 ---
 
@@ -8,9 +8,17 @@ A smart discount aggregation tool that tracks and presents available discounts a
 
 ### What is Discount Tracker?
 
-Discount Tracker is a web application that helps you find and track discounts offered by major banks and financial institutions for popular subscription services and online purchases.
+Discount Tracker is a web application that helps you find and track discounts offered by major banks and financial institutions (a.k.a issuers)* for popular subscription services and online purchases.
 
-**Key Features:**
+\*For now, only BBVA Bank and Galicia Bank, but more to come soon!
+
+### Why Discount Tracker?
+
+Ever needed to go grocery shopping and stood wondering for a while **what store to go to to save the most**? Do you have **multiple cards / credentials with lots of benefits**, but have a hard time figuring out **which one to use** to buy that nice shirt you saw online?
+
+If you found yourself in the above situations, then you're like me and you'd love a place to see all available discounts out there.
+
+### Key Features:
 
 - 📱 **Browse Discounts**: Explore all available discounts in an easy-to-use interface
 - 🔍 **Smart Filtering**: Filter by:
@@ -28,15 +36,18 @@ Discount Tracker is a web application that helps you find and track discounts of
 
 ### Getting Started
 
-The easiest way to get started is to follow the [Local Setup Guide](development/local.md). You'll have the app running in minutes with Docker.
+The easiest way to get started is to follow the [Local Setup Guide](setup_guides/local.md). You'll have the app running in minutes with Docker.
 
 **Quick Start:**
 ```bash
-docker compose up -d --build
+make start
+
+make run-orchestrator-test # within project folder
+
 # Visit http://localhost:8501 to explore discounts
 ```
 
-For cloud deployment, check the [Cloud Deployment Guide](development/cloud.md).
+For cloud deployment on GCP, follow the [Cloud Deployment Guide](setup_guides/cloud.md) and Terraform setup in [terraform/README.md](terraform/README.md).
 
 ---
 
@@ -49,36 +60,34 @@ Discount Tracker follows a modern ETL (Extract, Transform, Load) + Presentation 
 ```
 ┌─────────────────────────────────────────────────────┐
 │ EXTRACTION (Scrapy Spiders)                         │
-│ - Crawl BBVA, Galicia bank websites                │
-│ - Extract discount data, terms, conditions         │
+│ - Crawl issuers websites                            │
+│ - Extract discount data, terms, conditions          │
 └──────────────────┬──────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────┐
 │ LOAD (PostgreSQL)                                   │
-│ - Raw staging tables from spider output            │
+│ - Raw staging tables from spider output             │
 └──────────────────┬──────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────┐
 │ TRANSFORM (dbt)                                     │
-│ - Dimensional modeling (dims + facts)              │
-│ - Data validation & quality tests                  │
-│ - Business logic & aggregations                    │
+│ - Dimensional modeling (dims + facts)               │
+│ - Data validation & quality tests                   │
+│ - Business logic & aggregations                     │
 └──────────────────┬──────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────┐
 │ PRESENTATION (Streamlit)                            │
-│ - Dashboard: Summary analytics & charts            │
-│ - Explorer: Filterable discount cards              │
-│ - Pagination: 20 items per page                    │
+│ - Dashboard: Summary analytics & charts             │
+│ - Explorer: Filterable discount cards               │
 └─────────────────────────────────────────────────────┘
 ```
 
 ### System Components
 
 #### 1. **Data Extraction** (`discount_tracker_scrapy/`)
-- Scrapy-based spiders for each bank (`bbva.py`, `galicia.py`)
-- Custom pipelines for data normalization
-- Middleware for handling rate-limiting and retries
+- Scrapy-based spiders for each issuer (`bbva.py`, `galicia.py`)
+- Custom pipelines for data normalization and load to postgresDB.
 - Configurable crawling (item count limits for testing, full runs for production)
 
 **Output**: Raw discount items with merchant, discount %, cuotas, validity, terms
@@ -86,7 +95,7 @@ Discount Tracker follows a modern ETL (Extract, Transform, Load) + Presentation 
 #### 2. **Data Loading** (PostgreSQL + `orchestrate.py`)
 - PostgreSQL 16 database (containerized)
 - Staging tables populated directly from Scrapy output
-- Run statistics tracked for monitoring crawler health
+- Run statistics tracked for monitoring crawler health loaded to DB.
 - Schema managed via `init-db/init.sql`
 
 **Database Service**: `discount_db` (port 5432)
@@ -100,12 +109,6 @@ Discount Tracker follows a modern ETL (Extract, Transform, Load) + Presentation 
   - **Facts** (`fct_discounts.sql`): Granular discount records
   - **Marts** (Streamlit layer): Aggregated `streamlit_data.sql` for UI queries
 - **Testing**: dbt tests for data quality, uniqueness, referential integrity
-- **Profiles**: Separate `dev_docker` target for containerized runs
-
-**Command:**
-```bash
-make run-dbt-build  # Execute full dbt build with tests
-```
 
 #### 4. **Data Presentation** (`discount_tracker_streamlit/`)
 - Streamlit web app running on port 8501
@@ -116,10 +119,9 @@ make run-dbt-build  # Execute full dbt build with tests
   - Sidebar filters (search, issuer, category, valid days)
   - Real-time filtering with pandas
   - Session state management for pagination
-  - Green accent theme (#00A36C) matching financial industry standards
-  - Responsive grid layout with day-validity visualization
 
 **Data Query**: Raw SQL via `utils/queries/streamlit_data.sql` (cached 10-min TTL)
+
 
 ### Technology Stack
 
@@ -132,35 +134,9 @@ make run-dbt-build  # Execute full dbt build with tests
 | **Database** | PostgreSQL | 16 (Alpine) |
 | **Package Manager** | uv | Latest |
 | **Container Orchestration** | Docker Compose | Latest |
+| **Infrastructure as Code** | Terraform | 1.8+ |
+| **Cloud Platform** | Google Cloud Platform (Compute Engine) | Latest |
 | **Visualization** | Plotly | 6.6.0+ |
-
-### Data Flow Lifecycle
-
-1. **Crawl Phase** (~15 min):
-   ```bash
-   make run-orchestrator    # Full crawl (all items)
-   make run-orchestrator-test  # Quick test run (5 items)
-   ```
-   - Spiders fetch merchant pages from bank websites
-   - Items validated and deduplicated by pipelines
-   - Results stored in PostgreSQL `staging_discounts` table
-   - Crawl metadata saved to `scrapy_run_stats` table
-
-2. **Transform Phase** (~2 min):
-   ```bash
-   make run-dbt-build
-   ```
-   - `stg_discounts`: Sanitize discount data, parse dates, normalize fields
-   - `dim_merchants`: Build merchant dimension with deduplication
-   - `dim_issuers`: Bank/issuer dimension (BBVA, Galicia, etc.)
-   - `fct_discounts`: Fact table with foreign keys to dimensions
-   - `streamlit_data`: Flat denormalized view for UI query optimization
-
-3. **Serve Phase** (Real-time):
-   - Streamlit loads data from `streamlit_data` view every 10 min
-   - Filters applied in-memory with pandas
-   - Charts rendered with Plotly
-   - Interactive dashboard updated on filter interaction
 
 ### Environment Configuration
 
@@ -168,8 +144,8 @@ Create a `.env` file in project root (see `.env` template):
 
 ```bash
 # Database
-DB_HOST=db              # Docker service name (or IP for cloud)
-DB_NAME=discount_db
+DB_HOST=discount_db              # Docker service name (or IP for cloud)
+DB_NAME=discounts_db
 DB_USER=discount_user
 DB_PASSWORD=your_secure_password
 POSTGRES_DB_PORT=5432
@@ -177,13 +153,20 @@ POSTGRES_DB_PORT=5432
 # pgAdmin (Database UI)
 PGADMIN_EMAIL=admin@example.com
 PGADMIN_PASSWORD=admin_password
+
+# dbt (required by orchestrator)
+DBT_PROFILES_DIR=discount_tracker_dbt
+DBT_PROJECT_DIR=discount_tracker_dbt
+
+# removes uv warnings when working across different platforms
+UV_LINK_MODE=copy
 ```
 
 ### Docker Services
 
-Run all services with:
+Start all services from scratch:
 ```bash
-docker compose up -d --build
+make start
 ```
 
 **Services** (defined in `docker-compose.yml`):
@@ -196,13 +179,13 @@ docker compose up -d --build
 
 ```bash
 # Infrastructure
+make start                     # Build and starts all containers
 make up                        # Start all services
 make down                      # Stop all services
 
 # Data Pipeline
 make run-orchestrator          # Execute Scrapy crawl + dbt build
 make run-orchestrator-test     # Quick test run (5 items)
-make run-dbt-build            # Execute dbt only
 
 # Debugging
 docker logs discount_streamlit  # View app logs
@@ -236,22 +219,19 @@ discount-tracker/
 ├── run_spiders.py               # Scrapy runner
 ├── docker-compose.yml           # Service definitions
 ├── Dockerfile                   # Multi-stage build
+├── terraform/                   # GCP infrastructure provisioning (Terraform)
+│   ├── main.tf                  # VM + metadata startup script
+│   ├── firewall.tf              # Streamlit, pgAdmin, Postgres, SSH rules
+│   ├── cloud-init.sh            # VM bootstrap: Docker, uv, make, app startup
+│   └── README.md                # Terraform usage guide
+├── setup_guides/                # Local and cloud setup guides
+│   ├── local.md
+│   └── cloud.md
 └── Makefile                     # Task automation
 ```
 
 ### Setup & Deployment
 
-- **Local Development**: [development/local.md](development/local.md)
-- **Cloud (GCP)**: [development/cloud.md](development/cloud.md)
-
-### Contributing
-
-When modifying the data pipeline:
-1. Update Scrapy spiders in `discount_tracker_scrapy/spiders/`
-2. Add dbt tests in `discount_tracker_dbt/tests/`
-3. Run `make run-orchestrator-test` to validate
-4. Test Streamlit UI changes locally before pushing
-
----
-
-**Created with Python, Scrapy, dbt, and Streamlit** 🚀
+- **Local Development**: [setup_guides/local.md](setup_guides/local.md)
+- **Cloud (GCP + Terraform)**: [setup_guides/cloud.md](setup_guides/cloud.md)
+- **Terraform Reference**: [terraform/README.md](terraform/README.md)
