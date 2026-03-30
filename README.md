@@ -1,6 +1,8 @@
 # 💸 Discount Tracker
 
-A centralized dashboard that automatically tracks and organizes bank promotions in Argentina. Browse, filter, and discover the smartest way to pay, ensuring you never miss a chance to save at checkout.
+Discount Tracker is a centralized dashboard that automatically tracks and organizes bank promotions in Argentina. It helps people quickly decide where to buy and how to pay to maximize savings.
+
+> **Data Engineering Zoomcamp 2026 reviewers**: there is a dedicated section for you below: **For Data Engineering Zoomcamp 2026 Reviewers**.
 
 <img width="1278" height="532" alt="image" src="https://github.com/user-attachments/assets/d789435b-7179-4fea-aab7-ca621c90fc8d" />
 
@@ -8,236 +10,257 @@ A centralized dashboard that automatically tracks and organizes bank promotions 
 
 ---
 
-## 👥 For Casual Users
+## Presentation
 
-### What is Discount Tracker?
+### What this project is
 
-Discount Tracker is a web application that helps you find and track discounts offered by major banks and financial institutions (a.k.a issuers)* for popular subscription services and online purchases.
+Discount Tracker is a web app that collects bank promotions from issuer websites, processes that data, and shows it in a clean interface so users can discover the best discounts in seconds.
 
-\*For now, only BBVA Bank and Galicia Bank, but more to come soon!
+### What problem it solves
 
-### Why Discount Tracker?
+Bank discounts are fragmented across multiple apps and websites, often with different formats and changing terms. This project solves that by centralizing promotions in one place, standardizing the data, and making it searchable and filterable.
 
-I built this because I was tired of feeling like I was missing out.
+### What you can do with it
 
-Between bank promos, club memberships, and digital wallets, figuring out where to shop and how to pay has become a part-time job. This dashboard brings it all together. No more digging through five different banking apps—just the best deals, right when you need them.
+- Browse all available discounts in one dashboard
+- Filter discounts by issuer, category, and valid weekdays
+- Search discounts by merchant name
+- Compare discount percentages and installments
+- Check where each discount is valid (online, in-store, or both)
+- Read terms and conditions without leaving the app
 
-### Key Features:
+### Notes for non-Spanish speakers
 
-**IMPORTANT NOTICE**: tool UI is in Spanish (since it's meant to be used in Argentina). If you don't speak spanish, I suggest using Google's built in web translation service: I tried it and works pretty well!
+The app UI is in Spanish because it targets users in Argentina. Browser translation works well if needed.
 
-- 📱 **Browse Discounts**: Explore all available discounts in an easy-to-use interface
-- 🔍 **Smart Filtering**: Filter by:
-  - Bank/Issuer (BBVA, Galicia, etc.)
-  - Discount Category (streaming, food, travel, etc.)
-  - Days of the week the discount is valid
-  - Search by merchant name
-- 📊 **Dashboard**: See at-a-glance insights with charts showing discount distribution by issuer and category
-- 💰 **Detailed Info**: Each discount card shows:
-  - Discount percentage
-  - Number of payments (cuotas/installments)
-  - Valid days of the week
-  - Where it can be used (online, in-store, or both)
-  - Relevant terms and conditions
+### Quick start
 
-### Getting Started
+Full setup guides:
 
-The easiest way to get started is to follow the [Local Setup Guide](setup_guides/local.md). You'll have the app running in minutes with Docker.
+- Local: [setup_guides/local.md](setup_guides/local.md)
+- Cloud: [setup_guides/cloud.md](setup_guides/cloud.md)
+- Terraform details: [terraform/README.md](terraform/README.md)
 
-**Quick Start:**
+Fast local run:
+
 ```bash
-make start
+make start                        # Builds and starts the necessary docker containers
+make run-orchestrator-test        # Do a quick run of the batch ingestion script
 
-make run-orchestrator-test # within project folder
-
-# Visit http://localhost:8501 to explore discounts
+# Go to http://localhost:8501 to visit the streamlit app!
 ```
-
-For cloud deployment on GCP, follow the [Cloud Deployment Guide](setup_guides/cloud.md) and Terraform setup in [terraform/README.md](terraform/README.md).
 
 ---
 
-## 🛠️ For Technical Users
 
-### Architecture Overview
+## For Technical Users
 
-Discount Tracker follows a modern ETL (Extract, Transform, Load) + Presentation pattern:
+### Architecture overview
+
+The project follows an ETL + Presentation flow:
+
+```text
+Scrapy ingestion -> PostgreSQL staging/load -> dbt transformations -> Streamlit dashboard
+```
+
+Detailed flow:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ EXTRACTION (Scrapy Spiders)                         │
-│ - Crawl issuers websites                            │
-│ - Extract discount data, terms, conditions          │
+│ EXTRACTION (Scrapy spiders)                         │
+│ - Crawl issuer websites                              │
+│ - Extract discounts, terms, and validity info        │
 └──────────────────┬──────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────┐
 │ LOAD (PostgreSQL)                                   │
-│ - Raw staging tables from spider output             │
+│ - Persist raw/staging records                       │
+│ - Track run statistics                              │
 └──────────────────┬──────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────┐
 │ TRANSFORM (dbt)                                     │
-│ - Dimensional modeling (dims + facts)               │
-│ - Data validation & quality tests                   │
-│ - Business logic & aggregations                     │
+│ - Clean and normalize source data                   │
+│ - Build dimensions and fact tables                  │
+│ - Run data quality tests                            │
 └──────────────────┬──────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────┐
-│ PRESENTATION (Streamlit)                            │
-│ - Dashboard: Summary analytics & charts             │
-│ - Explorer: Filterable discount cards               │
+│ PRESENTATION (Streamlit + Plotly)                  │
+│ - Dashboard analytics                               │
+│ - Explorer with filters and pagination              │
 └─────────────────────────────────────────────────────┘
 ```
 
-### System Components
+### Main components
 
-#### 1. **Data Extraction** (`discount_tracker_scrapy/`)
-- Scrapy-based spiders for each issuer (`bbva.py`, `galicia.py`)
-- Custom pipelines for data normalization and load to postgresDB.
-- Configurable crawling (item count limits for testing, full runs for production)
+1. **Data extraction** ([discount_tracker_scrapy](discount_tracker_scrapy))
+   - Spiders per issuer: [discount_tracker_scrapy/spiders/bbva.py](discount_tracker_scrapy/spiders/bbva.py), [discount_tracker_scrapy/spiders/galicia.py](discount_tracker_scrapy/spiders/galicia.py)
+   - Pipelines for normalization and persistence
 
-**Output**: Raw discount items with merchant, discount %, cuotas, validity, terms
+2. **Load and orchestration** ([orchestrate.py](orchestrate.py), [run_spiders.py](run_spiders.py))
+   - Containerized PostgreSQL 16 backend
+   - Orchestrated pipeline execution from Make targets
+   - Schema bootstrapping in [init-db/init.sql](init-db/init.sql)
 
-#### 2. **Data Loading** (PostgreSQL + `orchestrate.py`)
-- PostgreSQL 16 database (containerized)
-- Staging tables populated directly from Scrapy output
-- Run statistics tracked for monitoring crawler health loaded to DB.
-- Schema managed via `init-db/init.sql`
+3. **Transformations** ([discount_tracker_dbt](discount_tracker_dbt))
+   - Staging model: [discount_tracker_dbt/models/staging/stg_discounts.sql](discount_tracker_dbt/models/staging/stg_discounts.sql)
+   - Dimensions: [discount_tracker_dbt/models/marts/dim_issuers.sql](discount_tracker_dbt/models/marts/dim_issuers.sql), [discount_tracker_dbt/models/marts/dim_merchants.sql](discount_tracker_dbt/models/marts/dim_merchants.sql), [discount_tracker_dbt/models/marts/dim_payment_methods.sql](discount_tracker_dbt/models/marts/dim_payment_methods.sql)
+   - Fact: [discount_tracker_dbt/models/marts/fct_discounts.sql](discount_tracker_dbt/models/marts/fct_discounts.sql)
+   - Streamlit mart: [discount_tracker_dbt/models/marts/streamlit/streamlit_data.sql](discount_tracker_dbt/models/marts/streamlit/streamlit_data.sql)
 
-**Database Service**: `discount_db` (port 5432)
-**Admin Interface**: pgAdmin (port 8080) for manual inspection
+4. **Presentation app** ([discount_tracker_streamlit/app.py](discount_tracker_streamlit/app.py))
+   - Dashboard page with issuer/category charts
+   - Explorer page with filters, cards, terms popovers, and pagination
 
-#### 3. **Data Transformation** (`discount_tracker_dbt/`)
-- dbt project with staging and marts layers
-- Modeling:
-  - **Staging** (`stg_discounts.sql`): Clean, normalize raw data
-  - **Dimensions** (`dim_*.sql`): Issuers, merchants, payment methods
-  - **Facts** (`fct_discounts.sql`): Granular discount records
-  - **Marts** (Streamlit layer): Aggregated `streamlit_data.sql` for UI queries
-- **Testing**: dbt tests for data quality, uniqueness, referential integrity
-
-#### 4. **Data Presentation** (`discount_tracker_streamlit/`)
-- Streamlit web app running on port 8501
-- Two-page layout:
-  - **Dashboard**: Plotly bar charts (discounts by issuer, by category)
-  - **Explorer**: Filterable, paginated discount card grid
-- Features:
-  - Sidebar filters (search, issuer, category, valid days)
-  - Real-time filtering with pandas
-  - Session state management for pagination
-
-**Data Query**: Raw SQL via `utils/queries/streamlit_data.sql` (cached 10-min TTL)
-
-
-### Technology Stack
+### Technology stack
 
 | Layer | Technology | Version |
-|-------|-----------|---------|
-| **Language** | Python | 3.12+ |
-| **Web Framework** | Streamlit | 1.55.0+ |
-| **Data Pipeline** | dbt-core | 1.11.6+ |
-| **Web Scraping** | Scrapy | 2.14.1+ |
-| **Database** | PostgreSQL | 16 (Alpine) |
-| **Package Manager** | uv | Latest |
-| **Container Orchestration** | Docker Compose | Latest |
-| **Infrastructure as Code** | Terraform | 1.8+ |
-| **Cloud Platform** | Google Cloud Platform (Compute Engine) | Latest |
-| **Visualization** | Plotly | 6.6.0+ |
+|-------|------------|---------|
+| Language | Python | 3.12+ |
+| Web app | Streamlit | 1.55.0+ |
+| Visualization | Plotly | 6.6.0+ |
+| Ingestion | Scrapy | 2.14.1+ |
+| Transformation | dbt-core | 1.11.6+ |
+| Database | PostgreSQL | 16 (Alpine) |
+| Container runtime | Docker Compose | Latest |
+| IaC | Terraform | 1.8+ |
+| Cloud | Google Cloud Platform (Compute Engine) | Latest |
 
-### Environment Configuration
+### Environment variables
 
-Create a `.env` file in project root (see `.env` template):
+Create a `.env` file in the project root:
 
 ```bash
 # Database
-DB_HOST=discount_db              # Docker service name (or IP for cloud)
+DB_HOST=discount_db
 DB_NAME=discounts_db
 DB_USER=discount_user
 DB_PASSWORD=your_secure_password
 POSTGRES_DB_PORT=5432
 
-# pgAdmin (Database UI)
+# pgAdmin
 PGADMIN_EMAIL=admin@example.com
 PGADMIN_PASSWORD=admin_password
 
-# dbt (required by orchestrator)
+# dbt
 DBT_PROFILES_DIR=discount_tracker_dbt
 DBT_PROJECT_DIR=discount_tracker_dbt
 
-# removes uv warnings when working across different platforms
+# uv compatibility
 UV_LINK_MODE=copy
 ```
 
-### Docker Services
+### Common commands
 
-Start all services from scratch:
 ```bash
+# Infra lifecycle
 make start
-```
+make up
+make down
 
-**Services** (defined in `docker-compose.yml`):
-- **db**: PostgreSQL database
-- **pgadmin**: pgAdmin web interface (http://localhost:8080)
-- **streamlit**: Streamlit web app (http://localhost:8501)
-- **orchestrator**: Scrapy + dbt runner (triggered via `make run-orchestrator`)
-
-### Useful Commands
-
-```bash
-# Infrastructure
-make start                     # Build and starts all containers
-make up                        # Start all services
-make down                      # Stop all services
-
-# Data Pipeline
-make run-orchestrator          # Execute Scrapy crawl + dbt build
-make run-orchestrator-test     # Quick test run (5 items)
+# Data pipeline
+make run-orchestrator
+make run-orchestrator-test
 
 # Debugging
-docker logs discount_streamlit  # View app logs
-docker exec -it discount_orchestrator /bin/bash  # Shell into orchestrator
+docker logs discount_streamlit
+docker exec -it discount_orchestrator /bin/bash
 ```
 
-### Project Structure
+### Project structure
 
-```
+```text
 discount-tracker/
-├── discount_tracker_scrapy/      # Scrapy spiders & pipelines
-│   ├── spiders/
-│   │   ├── bbva.py              # BBVA bank scraper
-│   │   └── galicia.py           # Galicia bank scraper
-│   ├── pipelines.py             # Data normalization
-│   └── settings.py              # Scrapy config
-├── discount_tracker_dbt/         # dbt transformations
-│   ├── models/
-│   │   ├── staging/             # Raw data cleanup
-│   │   └── marts/               # Analytics tables
-│   ├── tests/                   # Data quality tests
-│   └── profiles.yml             # dbt database config
-├── discount_tracker_streamlit/   # Streamlit web app
-│   ├── app.py                   # Main dashboard & explorer
-│   └── .streamlit/config.toml   # Streamlit config
-├── utils/                        # Shared utilities
-│   ├── functions.py             # DB connection helpers
-│   ├── configs.py               # Config loader
-│   └── queries/                 # SQL files for data loading
-├── orchestrate.py               # ETL orchestration script
-├── run_spiders.py               # Scrapy runner
-├── docker-compose.yml           # Service definitions
-├── Dockerfile                   # Multi-stage build
-├── terraform/                   # GCP infrastructure provisioning (Terraform)
-│   ├── main.tf                  # VM + metadata startup script
-│   ├── firewall.tf              # Streamlit, pgAdmin, Postgres, SSH rules
-│   ├── cloud-init.sh            # VM bootstrap: Docker, uv, make, app startup
-│   └── README.md                # Terraform usage guide
-├── setup_guides/                # Local and cloud setup guides
-│   ├── local.md
-│   └── cloud.md
-└── Makefile                     # Task automation
+├── discount_tracker_scrapy/      # Scrapy spiders and pipelines
+├── discount_tracker_dbt/         # dbt project: staging, marts, tests
+├── discount_tracker_streamlit/   # Streamlit UI
+├── utils/                        # shared helpers and SQL queries
+├── init-db/                      # DB initialization SQL
+├── setup_guides/                 # local and cloud setup docs
+├── terraform/                    # GCP infrastructure as code
+├── orchestrate.py                # batch orchestration
+├── run_spiders.py                # spider execution entrypoint
+├── docker-compose.yml            # service composition
+├── Dockerfile                    # app image build
+└── Makefile                      # developer and pipeline commands
 ```
 
-### Setup & Deployment
+### Setup and deployment docs
 
-- **Local Development**: [setup_guides/local.md](setup_guides/local.md)
-- **Cloud (GCP + Terraform)**: [setup_guides/cloud.md](setup_guides/cloud.md)
-- **Terraform Reference**: [terraform/README.md](terraform/README.md)
+- Local setup: [setup_guides/local.md](setup_guides/local.md)
+- Cloud deployment: [setup_guides/cloud.md](setup_guides/cloud.md)
+- Terraform reference: [terraform/README.md](terraform/README.md)
+
+
+---
+
+## For Data Engineering Zoomcamp 2026 Reviewers
+
+This section maps the implementation to the project evaluation criteria, along with suggested scores based on self-assesment.
+
+### 1) Problem description
+
+- **Criterion target**: clearly describe the problem and solution
+- **How this project addresses it**: the project centralizes scattered bank promotions, normalizes raw issuer data, and exposes discount intelligence through a user-facing dashboard
+- **Self-assessment**: **4/4**
+
+### 2) Cloud
+
+- **Criterion target**: cloud development plus IaC for full score
+- **How this project addresses it**:
+  - Runs on Google Cloud Platform (Compute Engine)
+  - Infrastructure is provisioned with Terraform in [terraform](terraform)
+  - Includes startup automation in [terraform/cloud-init.sh](terraform/cloud-init.sh)
+- **Self-assessment**: **4/4**
+
+### 3) Data ingestion (Batch / Workflow orchestration)
+
+- **Chosen ingestion mode**: **Batch**
+- **How this project addresses it**:
+  - Scrapy spiders ingest discount data from issuer websites
+  - `orchestrate.py` executes the pipeline steps (crawl, load, transform)
+  - Make targets provide reproducible pipeline runs (`make run-orchestrator`, `make run-orchestrator-test`)
+- **Self-assessment under strict rubric wording**: **2/4** (pipeline is orchestrated end-to-end, but it does not currently include a separate cloud data lake upload stage)
+
+### 4) Data warehouse
+
+- **Criterion target**: DWH tables, and partitioning/clustering for full score
+- **How this project addresses it**:
+  - Uses PostgreSQL as analytical serving store
+  - Builds dimensional/fact model with dbt (`dim_*`, `fct_discounts`, Streamlit mart)
+- **Self-assessment**: **2/4** (warehouse modeling is implemented; explicit partition/cluster optimization strategy is not currently part of the design)
+
+### 5) Transformations (dbt / Spark / similar)
+
+- **Criterion target**: dbt/Spark-based transformations for full score
+- **How this project addresses it**:
+  - Transformations are implemented with dbt in [discount_tracker_dbt](discount_tracker_dbt)
+  - Includes staging, dimensions, facts, tests, and a presentation mart
+- **Self-assessment**: **4/4**
+
+### 6) Dashboard
+
+- **Criterion target**: at least 2 tiles for full score
+- **How this project addresses it**:
+  - Streamlit dashboard includes two core visual tiles/charts:
+    - Discounts by issuer
+    - Discounts by category
+- **Self-assessment**: **4/4**
+
+### 7) Reproducibility
+
+- **Criterion target**: clear, complete instructions that work
+- **How this project addresses it**:
+  - Step-by-step setup docs for local and cloud environments
+  - Docker Compose + Makefile targets for consistent runs
+  - Terraform configuration and variables for reproducible cloud provisioning
+- **Self-assessment**: **4/4**
+
+### 8) Going the extra mile (Optional)
+
+- **Tests**: **Partially included**. The project includes dbt data quality tests (for example `not_null` and `unique` tests in marts models), but it does not yet include an automated Python unit/integration test suite for the scraping and app layers.
+- **Use make**: **Included**. The project uses a Makefile for common workflows such as startup, teardown, and orchestrator runs.
+- **CI/CD pipeline**: **Not included yet**. There is currently no repository CI/CD workflow configured.
+
+---
