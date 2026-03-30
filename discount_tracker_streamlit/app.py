@@ -95,8 +95,9 @@ def page_dashboard():
 
     st.divider()
 
+    col_left, col_right = st.columns(2)
+
     # Chart 1: Discounts by issuer
-    st.subheader("Descuentos por Emisor")
     by_issuer = (
         df['issuer_name']
         .value_counts()
@@ -119,12 +120,11 @@ def page_dashboard():
         xaxis=dict(title=None, gridcolor=chart_grid),
         yaxis=dict(gridcolor=chart_grid),
     )
-    st.plotly_chart(fig_issuer, use_container_width=True)
-
-    st.divider()
+    with col_left:
+        st.subheader("Descuentos por Emisor")
+        st.plotly_chart(fig_issuer, use_container_width=True)
 
     # Chart 2: Discounts by category
-    st.subheader("Descuentos por Categoría")
     by_category = (
         df['merchant_category_name']
         .value_counts()
@@ -150,7 +150,9 @@ def page_dashboard():
         xaxis=dict(gridcolor=chart_grid),
         yaxis=dict(title=None, gridcolor=chart_grid),
     )
-    st.plotly_chart(fig_category, use_container_width=True)
+    with col_right:
+        st.subheader("Descuentos por Categoría")
+        st.plotly_chart(fig_category, use_container_width=True)
 
     st.caption("Datos actualizados vía orquestador Scrapy & dbt.")
 
