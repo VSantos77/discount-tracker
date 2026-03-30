@@ -4,9 +4,23 @@ Discount Tracker is a centralized dashboard that automatically tracks and organi
 
 > **Data Engineering Zoomcamp 2026 reviewers**: there is a dedicated section for you below: **For Data Engineering Zoomcamp 2026 Reviewers**.
 
-<img width="1278" height="532" alt="image" src="https://github.com/user-attachments/assets/d789435b-7179-4fea-aab7-ca621c90fc8d" />
+## Table of Contents
 
-<img width="1280" height="581" alt="image2" src="https://github.com/user-attachments/assets/48958d99-f6fa-4d83-95f8-4ffef623ff6e" />
+- [Presentation](#presentation)
+- [What this project is](#what-this-project-is)
+- [What problem it solves](#what-problem-it-solves)
+- [What you can do with it](#what-you-can-do-with-it)
+- [Notes for non-Spanish speakers](#notes-for-non-spanish-speakers)
+- [Quick start](#quick-start)
+- [For Technical Users](#for-technical-users)
+- [Architecture overview](#architecture-overview)
+- [Main components](#main-components)
+- [Technology stack](#technology-stack)
+- [Environment variables](#environment-variables)
+- [Common commands](#common-commands)
+- [Project structure](#project-structure)
+- [Setup and deployment docs](#setup-and-deployment-docs)
+- [For Data Engineering Zoomcamp 2026 Reviewers](#for-data-engineering-zoomcamp-2026-reviewers)
 
 ---
 
@@ -16,9 +30,13 @@ Discount Tracker is a centralized dashboard that automatically tracks and organi
 
 Discount Tracker is a web app that collects bank promotions from issuer websites, processes that data, and shows it in a clean interface so users can discover the best discounts in seconds.
 
+<img width="1278" height="532" alt="image" src="https://github.com/user-attachments/assets/d789435b-7179-4fea-aab7-ca621c90fc8d" />
+
 ### What problem it solves
 
 Bank discounts are fragmented across multiple apps and websites, often with different formats and changing terms. This project solves that by centralizing promotions in one place, standardizing the data, and making it searchable and filterable.
+
+<img width="1280" height="581" alt="image2" src="https://github.com/user-attachments/assets/48958d99-f6fa-4d83-95f8-4ffef623ff6e" />
 
 ### What you can do with it
 
