@@ -1,11 +1,10 @@
 # 💸 Discount Tracker
 
-A smart discount aggregation tool that tracks and presents available discounts across different financial institutions in Argentina. Browse, filter, and discover the best deals across shops in one centralized dashboard.
+A centralized dashboard that automatically tracks and organizes bank promotions in Argentina. Browse, filter, and discover the smartest way to pay, ensuring you never miss a chance to save at checkout.
 
-<img width="1597" height="665" alt="image" src="https://github.com/user-attachments/assets/d789435b-7179-4fea-aab7-ca621c90fc8d" />
+<img width="1278" height="532" alt="image" src="https://github.com/user-attachments/assets/d789435b-7179-4fea-aab7-ca621c90fc8d" />
 
-<img width="1592" height="668" alt="image" src="https://github.com/user-attachments/assets/9b4b8de7-bbe9-4bb6-b38b-20441052b687" />
-
+<img width="1280" height="581" alt="image2" src="https://github.com/user-attachments/assets/48958d99-f6fa-4d83-95f8-4ffef623ff6e" />
 
 ---
 
@@ -19,9 +18,9 @@ Discount Tracker is a web application that helps you find and track discounts of
 
 ### Why Discount Tracker?
 
-Ever needed to go grocery shopping and stood wondering for a while **what store to go to to save the most**? Do you have **multiple cards / credentials with lots of benefits**, but have a hard time figuring out **which one to use** to buy that nice shirt you saw online?
+I built this because I was tired of feeling like I was missing out.
 
-If you found yourself in the above situations, then you're like me and you'd love a place to see all available discounts out there.
+Between bank promos, club memberships, and digital wallets, figuring out where to shop and how to pay has become a part-time job. This dashboard brings it all together. No more digging through five different banking apps—just the best deals, right when you need them.
 
 ### Key Features:
 
