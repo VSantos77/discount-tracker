@@ -2,6 +2,11 @@
 
 A smart discount aggregation tool that tracks and presents available discounts across different financial institutions in Argentina. Browse, filter, and discover the best deals across shops in one centralized dashboard.
 
+<img width="1597" height="665" alt="image" src="https://github.com/user-attachments/assets/d789435b-7179-4fea-aab7-ca621c90fc8d" />
+
+<img width="1592" height="668" alt="image" src="https://github.com/user-attachments/assets/9b4b8de7-bbe9-4bb6-b38b-20441052b687" />
+
+
 ---
 
 ## 👥 For Casual Users
@@ -19,6 +24,8 @@ Ever needed to go grocery shopping and stood wondering for a while **what store 
 If you found yourself in the above situations, then you're like me and you'd love a place to see all available discounts out there.
 
 ### Key Features:
+
+**IMPORTANT NOTICE**: tool UI is in Spanish (since it's meant to be used in Argentina). If you don't speak spanish, I suggest using Google's built in web translation service: I tried it and works pretty well!
 
 - 📱 **Browse Discounts**: Explore all available discounts in an easy-to-use interface
 - 🔍 **Smart Filtering**: Filter by:
