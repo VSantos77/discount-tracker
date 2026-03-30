@@ -199,68 +199,15 @@ discount-tracker/
 
 This section maps the implementation to the project evaluation criteria, along with suggested scores based on self-assesment.
 
-### 1) Problem description
-
-- **Criterion target**: clearly describe the problem and solution
-- **How this project addresses it**: the project centralizes scattered bank promotions, normalizes raw issuer data, and exposes discount intelligence through a user-facing dashboard
-- **Self-assessment**: **4/4**
-
-### 2) Cloud
-
-- **Criterion target**: cloud development plus IaC for full score
-- **How this project addresses it**:
-  - Runs on Google Cloud Platform (Compute Engine)
-  - Infrastructure is provisioned with Terraform in [terraform](terraform)
-  - Includes startup automation in [terraform/cloud-init.sh](terraform/cloud-init.sh)
-- **Self-assessment**: **4/4**
-
-### 3) Data ingestion (Batch / Workflow orchestration)
-
-- **Chosen ingestion mode**: **Batch**
-- **How this project addresses it**:
-  - Scrapy spiders ingest discount data from issuer websites
-  - `orchestrate.py` executes the pipeline steps (crawl, load, transform)
-  - Make targets provide reproducible pipeline runs (`make run-orchestrator`, `make run-orchestrator-test`)
-- **Self-assessment under strict rubric wording**: **2/4** (pipeline is orchestrated end-to-end, but it does not currently include a separate cloud data lake upload stage)
-
-### 4) Data warehouse
-
-- **Criterion target**: DWH tables, and partitioning/clustering for full score
-- **How this project addresses it**:
-  - Uses PostgreSQL as analytical serving store
-  - Builds dimensional/fact model with dbt (`dim_*`, `fct_discounts`, Streamlit mart)
-- **Self-assessment**: **2/4** (warehouse modeling is implemented; explicit partition/cluster optimization strategy is not currently part of the design)
-
-### 5) Transformations (dbt / Spark / similar)
-
-- **Criterion target**: dbt/Spark-based transformations for full score
-- **How this project addresses it**:
-  - Transformations are implemented with dbt in [discount_tracker_dbt](discount_tracker_dbt)
-  - Includes staging, dimensions, facts, tests, and a presentation mart
-- **Self-assessment**: **4/4**
-
-### 6) Dashboard
-
-- **Criterion target**: at least 2 tiles for full score
-- **How this project addresses it**:
-  - Streamlit dashboard includes two core visual tiles/charts:
-    - Discounts by issuer
-    - Discounts by category
-- **Self-assessment**: **4/4**
-
-### 7) Reproducibility
-
-- **Criterion target**: clear, complete instructions that work
-- **How this project addresses it**:
-  - Step-by-step setup docs for local and cloud environments
-  - Docker Compose + Makefile targets for consistent runs
-  - Terraform configuration and variables for reproducible cloud provisioning
-- **Self-assessment**: **4/4**
-
-### 8) Going the extra mile (Optional)
-
-- **Tests**: **Partially included**. The project includes dbt data quality tests (for example `not_null` and `unique` tests in marts models), but it does not yet include an automated Python unit/integration test suite for the scraping and app layers.
-- **Use make**: **Included**. The project uses a Makefile for common workflows such as startup, teardown, and orchestrator runs.
-- **CI/CD pipeline**: **Not included yet**. There is currently no repository CI/CD workflow configured.
+| Criterion | Criterion target | How this project addresses it | Self-assessment |
+|---|---|---|---|
+| Problem description | Clearly describe the problem and solution | Centralizes scattered bank promotions, normalizes raw issuer data, and exposes discount intelligence through a user-facing dashboard. | 4/4 |
+| Cloud | Cloud development plus IaC for full score | Runs on Google Cloud Platform (Compute Engine), infrastructure is provisioned with Terraform in [terraform](terraform), and startup automation is defined in [terraform/cloud-init.sh](terraform/cloud-init.sh). | 4/4 |
+| Data ingestion (Batch / Workflow orchestration) | End-to-end orchestration for full score | Chosen mode is Batch. Scrapy spiders ingest issuer data, [orchestrate.py](orchestrate.py) runs crawl/load/transform, and Make targets run reproducible pipeline executions. | 2/4 (strict rubric: no separate cloud data lake upload stage) |
+| Data warehouse | DWH tables plus partitioning/clustering for full score | Uses PostgreSQL as analytical serving store and builds dimensional/fact models with dbt (dims, facts, Streamlit mart). | 2/4 (modeling implemented; no explicit partition/cluster strategy documented) |
+| Transformations (dbt / Spark / similar) | dbt/Spark-based transformations for full score | Transformations are implemented with dbt in [discount_tracker_dbt](discount_tracker_dbt), including staging, dimensions, facts, tests, and a presentation mart. | 4/4 |
+| Dashboard | At least 2 tiles for full score | Streamlit dashboard includes two core charts: discounts by issuer and discounts by category. | 4/4 |
+| Reproducibility | Clear, complete instructions that work | Includes local/cloud setup guides, Docker Compose + Makefile workflows, and Terraform configuration for reproducible cloud provisioning. | 4/4 |
+| Going the extra mile (Optional) | Optional, non-graded enhancements | Tests: partially included (dbt data tests present; no Python unit/integration suite yet). Use make: included (Makefile workflows in place). CI/CD: not included yet (no repository workflow configured). | Optional (non-graded) |
 
 ---
