@@ -10,14 +10,26 @@ up:
 down:
 	docker compose down
 
-# Run orchestrator (Scrapy + DBT)
-run-orchestrator-prod:
+# ── Individual pipeline steps ─────────────────────────────────────────────────
+
+# Step 1: Run Scrapy spiders, write JSON files to data/
+run-spiders:
+	docker exec -it discount_orchestrator python orchestrate.py --step=spiders
+
+# Step 2: Batch-load JSON files from data/ into raw_discounts table
+run-load:
+	docker exec -it discount_orchestrator python orchestrate.py --step=load
+
+# Step 3: Run dbt deps + dbt build
+run-dbt:
+	docker exec -it discount_orchestrator python orchestrate.py --step=dbt --dbt-target=prod
+
+# ── Full pipeline ──────────────────────────────────────────────────────────────
+
+# Run all three steps in sequence (production)
+run-pipeline:
 	docker exec -it discount_orchestrator python orchestrate.py --dbt-target=prod
 
-# Test run orchestrator (short Scrapy crawl + DBT using dev target)
-run-orchestrator-test:
+# Run all three steps with a limited item count (quick local test)
+run-pipeline-test:
 	docker exec -it discount_orchestrator python orchestrate.py --itemcount=5 --dbt-target=prod
-
-# Run dbt build separately (production)
-run-dbt-build-prod:
-	docker compose exec -it orchestrator uv run --group orchestrator dbt build --project-dir=discount_tracker_dbt --profiles-dir=discount_tracker_dbt --target=prod

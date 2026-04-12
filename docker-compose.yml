@@ -45,7 +45,7 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - .:/app
+      - .:/app:ro
       - /app/.venv
     command: uv run streamlit run discount_tracker_streamlit/app.py --server.port 8501 --server.address 0.0.0.0
 
@@ -68,10 +68,9 @@ services:
       - UV_LINK_MODE=${UV_LINK_MODE}
     volumes:  
       - .:/app
-      - /app/.venv                                                 # Avoid volume conflicts with the virtual environment
-      - dbt_packages_volume:/app/discount_tracker_dbt/dbt_packages # Separate volume for dbt_packages to avoid conflicts
+      - /app/.venv                              # Avoid volume conflicts with the virtual environment
+      - /app/discount_tracker_dbt/dbt_packages  # Mask host folder; packages are baked into the image
     command: sleep infinity
 
 volumes:
   postgres_data:
-  dbt_packages_volume:

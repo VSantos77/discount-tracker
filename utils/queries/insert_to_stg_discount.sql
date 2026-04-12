@@ -1,4 +1,4 @@
-INSERT INTO stg_discounts (
+INSERT INTO int_joined_discounts (
     issuer_name, merchant_name, discount_start_date, discount_end_date,
     discount_payment_method, discount_rate, merchant_category_name, discount_no_interest_installment_qty,
     discount_name, discount_description, discount_url, discount_terms_and_conditions,

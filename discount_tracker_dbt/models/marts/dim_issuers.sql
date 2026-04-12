@@ -6,7 +6,7 @@
 }}
 
 with source as (
-    select * from {{ ref('stg_discounts')}} 
+    select * from {{ ref('int_joined_discounts')}} 
 ),
 
 distinct_issuers as (

@@ -4,7 +4,7 @@ sources:
   - name: staging
     description: "Raw discount data scraped from issuers websites"
     database: discounts_db
-    schema: public
+    schema: raw
     tables:
-      - name: stg_discounts
-        description: "Staging table for raw discount data"
+      - name: raw_discounts
+        description: "Raw JSONB landing table — one row per scraped item, untransformed"

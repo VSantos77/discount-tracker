@@ -1,5 +1,4 @@
 import scrapy
-from discount_tracker_scrapy.items import DiscountItem, BBVADiscountLoader
 from scrapy.exceptions import CloseSpider
 import re
 
@@ -124,29 +123,17 @@ class BBVASpider(scrapy.Spider):
         self.logger.info(f"Parsing details for discount ID: {response.meta['discount_id']}")
 
         data = response.json()['data']
-        
-        loader = BBVADiscountLoader(item=DiscountItem(), response=response)
 
-        loader.add_value('issuer_name', "Banco BBVA")
-        loader.add_value('merchant_name', data.get('cabecera') or '')
-        loader.add_value('discount_name', data.get('cabecera') or '')
-        loader.add_value('discount_description', response.meta['subcabecera'])
-        loader.add_value('discount_url', self.discount_url.format(response.meta['discount_id']))
-        loader.add_value('discount_start_date', response.meta['discount_start_date'])
-        loader.add_value('discount_end_date', response.meta['discount_end_date'])
-        loader.add_value('discount_terms_and_conditions', data.get('basesCondiciones'))
-        loader.add_value('discount_rate', data.get('cabecera') or '')
-        loader.add_value('discount_max_discount_amount', data.get('beneficios')[0].get('tope'))
-        loader.add_value('discount_min_purchase_amount', None)
-        loader.add_value('discount_no_interest_installment_qty', data.get('beneficios')[0].get('cuota'))
-        loader.add_value('discount_valid_days_list', data.get('diasPromo') or '')
-        loader.add_value('discount_valid_online', len(data.get('canalesVenta').get('web')))
-        loader.add_value('discount_valid_instore', len(data.get('canalesVenta').get('sucursales')))
-        loader.add_value('discount_metadata', data)
-        loader.add_value('discount_payment_method', data.get('grupoTarjeta'))
-        loader.add_value('merchant_category_name', response.meta['category_name'])
-
-        yield loader.load_item()
+        yield {
+            # Catalog-level meta (raw strings from the catalog API response)
+            'source_id': response.meta['discount_id'],
+            'discount_start_date': response.meta['discount_start_date'],
+            'discount_end_date': response.meta['discount_end_date'],
+            'subcabecera': response.meta['subcabecera'],
+            'category_name': response.meta['category_name'],
+            # Full detail API response — untransformed
+            **data,
+        }
 
         # Keep track of discounts scraped per category
         self.crawler.stats.inc_value(f'custom/items_scraped/{response.meta["category_name"]}')

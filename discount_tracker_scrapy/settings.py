@@ -63,12 +63,17 @@ DOWNLOAD_DELAY = 0.1
 #    "scrapy.extensions.telnet.TelnetConsole": None,
 #}
 
-# Configure item pipelines
-# See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-ITEM_PIPELINES = {
-   "discount_tracker_scrapy.pipelines.CheckMandatoryFieldsPipeline": 300,
-   "discount_tracker_scrapy.pipelines.EnsureFullSchemaPipeline" : 400,
-   "discount_tracker_scrapy.pipelines.SendToPostgresPipeline": 800,
+# No active item pipelines — export is handled by FEEDS below.
+ITEM_PIPELINES = {}
+
+# Feed exports: one .jsonl file per spider per run under data/landing/<spider>/<timestamp>.jsonl
+FEEDS = {
+    'data/landing/%(name)s/%(time)s.jsonl': {
+        'format': 'jsonlines',
+        'encoding': 'utf8',
+        'store_empty': False,
+        'overwrite': True,
+    }
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)

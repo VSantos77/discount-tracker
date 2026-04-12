@@ -30,29 +30,18 @@ def run_step(command, step_name):
         print(f"❌ --- Failed: {step_name} (Exit Code: {e.returncode}) ---")
         sys.exit(e.returncode)
 
-def main():
-    parser = argparse.ArgumentParser(description="Orchestrate ETL Pipeline")
-    parser.add_argument("--itemcount", type=int, default=0, help="Pass item count limit to spiders")
-    parser.add_argument("--spiders", type=str, default='', help="Comma-separated list of spiders to run (default: all)")
-    parser.add_argument("--dry-run",type=str, default='0', help="Run spiders in dry-run mode (no items scraped)")
-    parser.add_argument("--dbt-target", type=str, default='dev_docker', help="dbt target to use (default: dev_docker)")
-    
-    args = parser.parse_args()
 
-    print("🎼 Starting Orchestration Pipeline...")
-    
-    # 1. Run Scrapy Spiders (using your existing runner)
+def step_spiders(args):
+    """Run Scrapy spiders and persist crawl stats to DB."""
     try:
         crawl_results = execute_crawls(
             itemcount=args.itemcount,
-            spiders=args.spiders,
-            dry_run=args.dry_run
+            spiders=args.spiders
         )
 
         with open(get_project_root_path() / "utils" / "queries" / "insert_to_scrapy_run_stats.sql", 'r') as f:
             insert_query = f.read()
 
-        # Store results in DB
         with get_db_connection(DB_SETTINGS) as conn:
             with conn.cursor() as cur:
                 for spider_name, stats in crawl_results.items():
@@ -69,22 +58,57 @@ def main():
                     )
                 conn.commit()
 
-        print('✅ Crawl results successfully loaded to DB')
+        print('✅ Crawl stats successfully loaded to DB')
     except Exception as e:
         print(f"❌ --- Error during spider execution or DB insertion: {e} ---")
         sys.exit(1)
 
-    # 2. Run dbt Build (runs models, tests, snapshots, seeds)
-    # We target 'dev_docker' which uses the env vars from docker-compose
 
-    # First run dbt deps
+def step_load(args):
+    """Batch-load JSON files produced by spiders into raw_discounts."""
+    run_step(["python", "load_raw_json.py"], "Load raw JSON to Postgres")
 
-    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "deps", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR, "--target", args.dbt_target]
-    run_step(dbt_args, "dbt Deps")
 
-    # Then run dbt build
-    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "build", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR, "--target", args.dbt_target]
-    run_step(dbt_args, "dbt Build")
+def step_dbt(args):
+    """Run dbt build (deps pre-installed in Docker image)."""
+    run_step(
+        ["uv", "run", "--group", "orchestrator", "dbt", "build",
+         "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR,
+         "--target", args.dbt_target],
+        "dbt Build"
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Orchestrate ETL Pipeline")
+    parser.add_argument(
+        "--step",
+        choices=["spiders", "load", "dbt"],
+        default=None,
+        help="Run a single pipeline step. Omit to run all steps in sequence."
+    )
+    parser.add_argument("--itemcount", type=int, default=0, help="Pass item count limit to spiders")
+    parser.add_argument("--spiders", type=str, default='', help="Comma-separated list of spiders to run (default: all)")
+    parser.add_argument("--dbt-target", type=str, default='dev_docker', help="dbt target to use (default: dev_docker)")
+
+    args = parser.parse_args()
+
+    if args.step == "spiders":
+        print("🎼 Running step: Spiders")
+        step_spiders(args)
+    elif args.step == "load":
+        print("🎼 Running step: Load")
+        step_load(args)
+    elif args.step == "dbt":
+        print("🎼 Running step: dbt")
+        step_dbt(args)
+    else:
+        print("🎼 Running full pipeline: Spiders → Load → dbt")
+        step_spiders(args)
+        step_load(args)
+        step_dbt(args)
+
+    print("\n🎉 Pipeline finished successfully.")
 
 if __name__ == "__main__":
     main()

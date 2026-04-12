@@ -509,6 +509,8 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "datetime" },
+    { name = "dbt-core" },
+    { name = "dbt-postgres" },
     { name = "dotenv" },
     { name = "plotly" },
     { name = "psycopg2-binary" },
@@ -529,6 +531,8 @@ streamlit = [
 [package.metadata]
 requires-dist = [
     { name = "datetime", specifier = ">=6.0" },
+    { name = "dbt-core", specifier = ">=1.11.7" },
+    { name = "dbt-postgres", specifier = ">=1.10.0" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "plotly", specifier = ">=6.6.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },

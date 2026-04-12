@@ -6,3 +6,4 @@ test/
 logs
 .vscode/
 /development
+data/landing/

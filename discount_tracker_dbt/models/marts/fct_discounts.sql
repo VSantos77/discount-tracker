@@ -6,7 +6,7 @@
 with discounts_source as (
     select
         *
-    from {{ ref('stg_discounts') }}
+    from {{ ref('int_joined_discounts') }}
 ),
 
 discounts as (

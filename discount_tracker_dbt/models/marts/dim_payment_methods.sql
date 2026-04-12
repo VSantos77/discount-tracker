@@ -8,15 +8,14 @@
 with source as (
     select
         *
-    from {{ ref('stg_discounts') }}
+    from {{ ref('int_joined_discounts') }}
 ),
 
 unpacked as (
     select distinct
-        pm ->> 'card' as card_name,
-        pm ->> 'card_type' as card_type
+        discount_payment_method ->> 'card'      as card_name,
+        discount_payment_method ->> 'card_type' as card_type
     from source
-    cross join lateral jsonb_array_elements(discount_payment_method) as pm
 ),
 
 final as (
