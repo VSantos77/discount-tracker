@@ -43,8 +43,8 @@ select
 
     -- porcentajeAhorro is a plain number (e.g. 20), normalise to 0..1
     case
-        when raw_payload->>'porcentajeAhorro' is not null
-        then round((raw_payload->>'porcentajeAhorro')::numeric / 100, 4)
+        when nullif(trim(raw_payload->>'porcentajeAhorro'), '') is not null
+        then round(nullif(trim(raw_payload->>'porcentajeAhorro'), '')::numeric / 100, 4)
         else null
     end                                                         as discount_rate,
 
@@ -53,9 +53,9 @@ select
     raw_payload->>'legales'                                     as discount_terms_and_conditions,
     null::text                                                  as discount_url,
 
-    (raw_payload->>'topeReintegro')::numeric                    as discount_max_discount_amount,
+    nullif(trim(raw_payload->>'topeReintegro'), '')::numeric    as discount_max_discount_amount,
     null::numeric                                               as discount_min_purchase_amount,
-    (raw_payload->>'cuotaSinInteresHasta')::integer             as discount_no_interest_installment_qty,
+    nullif(trim(raw_payload->>'cuotaSinInteresHasta'), '')::integer as discount_no_interest_installment_qty,
 
     -- diasAplicacion: semicolon-separated day abbreviations e.g. "Lu;Ma;Mi"
     -- Convert to a JSONB array of 0-based weekday integers

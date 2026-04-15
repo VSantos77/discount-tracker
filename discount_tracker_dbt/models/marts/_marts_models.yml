@@ -7,9 +7,36 @@ models:
       - name: discount_id
         data_tests:
           - not_null
-          - unique
+          - unique        
+      - name: issuer_id
+        data_tests:
+          - not_null
+      - name: merchant_id
+        data_tests:
+          - not_null
+      - name: discount_start_date
+        data_tests:
+          - not_null
+      - name: discount_end_date
+        data_tests:
+          - not_null
+      - name: discount_rate
+        data_tests:
+          - not_null
+      - name: discount_no_interest_installment_qty
+        data_tests:
+          - not_null
+      - name: discount_valid_days_list
+        data_tests:
+          - not_null
+      - name: discount_valid_online
+        data_tests:
+          - not_null
+      - name: discount_valid_instore
+        data_tests:
+          - not_null
   - name: dim_merchants
-    description: "Dimension table for merchants, containing information about the merchants offering discounts"
+    description: "Dimension table for merchants containing information about the merchants offering discounts"
     columns:
       - name: merchant_id
         data_tests:

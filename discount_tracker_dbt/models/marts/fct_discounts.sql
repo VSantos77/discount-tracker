@@ -49,8 +49,8 @@ select
     d.discount_metadata,
     d.scraped_at
 from discounts d
-join issuers i on d.issuer_name = i.issuer_name
-join merchants m on d.merchant_name = m.merchant_name 
+left join issuers i on d.issuer_name = i.issuer_name
+left join merchants m on d.merchant_name = m.merchant_name 
     and d.merchant_category_name = m.merchant_category_name
 
 {% if is_incremental() %}

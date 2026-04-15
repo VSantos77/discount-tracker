@@ -8,6 +8,13 @@ import sys
 import time
 import os
 import argparse
+import yaml
+
+def get_active_spiders():
+    path = get_project_root_path() / "utils" / "spider_config.yaml"
+    with open(path, "r") as f:
+        config = yaml.safe_load(f)
+    return [s['name'] for s in config['spiders'] if s['active']]
 
 def run_step(command, step_name):
     print(f"\n🚀 --- Starting: {step_name} ---")
@@ -92,6 +99,19 @@ def main():
     parser.add_argument("--dbt-target", type=str, default='dev_docker', help="dbt target to use (default: dev_docker)")
 
     args = parser.parse_args()
+
+    active_spider_list = get_active_spiders()
+
+    if args.spiders == '':
+        args.spiders = ','.join(active_spider_list)
+    else:
+        requested_spiders = [s.strip() for s in args.spiders.split(',')]
+        invalid_spiders = [s for s in requested_spiders if s not in active_spider_list]
+        if invalid_spiders:
+            print(f"❌ Invalid spider names: {', '.join(invalid_spiders)}")
+            print(f"Available active spiders: {', '.join(active_spider_list)}")
+            sys.exit(1)
+        args.spiders = ','.join(requested_spiders)
 
     if args.step == "spiders":
         print("🎼 Running step: Spiders")

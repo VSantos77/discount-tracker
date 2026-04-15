@@ -11,11 +11,17 @@ with
 
 bbva    as (select * from {{ ref('stg_bbva') }}),
 galicia as (select * from {{ ref('stg_galicia') }}),
+santander as (select * from {{ ref('stg_santander') }}),
+{# modo    as (select * from {{ ref('stg_modo') }}), #}
 
 combined as (
     select * from bbva
     union all
     select * from galicia
+    union all
+    select * from santander
+    {# union all
+    select * from modo #}
 )
 
 select
@@ -28,14 +34,14 @@ select
     merchant_category_name,
     discount_start_date,
     discount_end_date,
-    discount_rate,
+    GREATEST(COALESCE(discount_rate,0),0) AS discount_rate,
     discount_name,
     discount_description,
     discount_terms_and_conditions,
     discount_url,
-    discount_max_discount_amount,
-    discount_min_purchase_amount,
-    discount_no_interest_installment_qty,
+    COALESCE(discount_max_discount_amount,0) AS discount_max_discount_amount,
+    COALESCE(discount_min_purchase_amount,0) AS discount_min_purchase_amount,
+    GREATEST(COALESCE(discount_no_interest_installment_qty,0),0) AS discount_no_interest_installment_qty,
     discount_valid_days_list,
     discount_valid_online,
     discount_valid_instore,

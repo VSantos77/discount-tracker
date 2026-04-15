@@ -73,7 +73,7 @@ select
     -- Max discount amount and installments from first beneficio entry
     case
         when jsonb_array_length(raw_payload->'beneficios') > 0
-        then (raw_payload->'beneficios'->0->>'tope')::numeric
+        then nullif(trim(raw_payload->'beneficios'->0->>'tope'), '')::numeric
         else null
     end                                                         as discount_max_discount_amount,
 
