@@ -10,6 +10,7 @@ dependencies = [
     "dbt-postgres>=1.10.0",
     "dotenv>=0.9.9",
     "plotly>=6.6.0",
+    "prefect>=3.6.26",
     "psycopg2-binary>=2.9.11",
     "regex>=2026.1.15",
 ]
@@ -19,6 +20,7 @@ orchestrator = [
     "dbt>=1.0.0.40.14",
     "dbt-core>=1.11.6",
     "dbt-postgres>=1.10.0",
+    "prefect>=3",
     "scrapy>=2.14.1"
 ]
 streamlit = [

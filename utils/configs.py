@@ -10,6 +10,3 @@ DB_SETTINGS = {
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD")
 }
-
-DBT_PROJECT_DIR = os.getenv("DBT_PROJECT_DIR")
-DBT_PROFILES_DIR = os.getenv("DBT_PROFILES_DIR")

@@ -1,134 +1,87 @@
-from run_spiders import execute_crawls
-from utils.functions import get_db_connection
-from utils.functions import get_project_root_path
-from utils.configs import DB_SETTINGS
-from utils.configs import DBT_PROJECT_DIR
-import subprocess
-import sys
-import time
-import os
 import argparse
+import subprocess
 import yaml
 
-def get_active_spiders():
+from prefect import flow, task
+
+from load_raw_json import load_raw_json_data
+from run_spiders import execute_crawls
+from utils.functions import get_project_root_path
+
+
+def get_active_spiders() -> list[str]:
     path = get_project_root_path() / "utils" / "spider_config.yaml"
     with open(path, "r") as f:
         config = yaml.safe_load(f)
-    return [s['name'] for s in config['spiders'] if s['active']]
-
-def run_step(command, step_name):
-    print(f"\n🚀 --- Starting: {step_name} ---")
-    start = time.time()
-    try:
-        # Use sys.executable to ensure we use the same python interpreter (from the venv)
-        if command[0] == "python":
-            command[0] = sys.executable
-            
-        # Run the command and wait for it to finish. Check=True raises error on non-zero exit.
-        subprocess.run(
-            command,
-            check=True,
-            text=True,
-            env=os.environ.copy() # Pass current env vars (DB credentials, etc.)
-        )
-        duration = time.time() - start
-        print(f"✅ --- Completed: {step_name} (took {duration:.2f}s) ---")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ --- Failed: {step_name} (Exit Code: {e.returncode}) ---")
-        sys.exit(e.returncode)
+    return [s["name"] for s in config["spiders"] if s["active"]]
 
 
-def step_spiders(args):
-    """Run Scrapy spiders and persist crawl stats to DB."""
-    try:
-        crawl_results = execute_crawls(
-            itemcount=args.itemcount,
-            spiders=args.spiders
-        )
+@task(name="run-spiders", log_prints=True)
+def task_run_spiders(spiders: str = "", itemcount: int = 0) -> dict:
+    active_spiders = get_active_spiders()
 
-        with open(get_project_root_path() / "utils" / "queries" / "insert_to_scrapy_run_stats.sql", 'r') as f:
-            insert_query = f.read()
+    if not spiders:
+        spiders = ",".join(active_spiders)
+    else:
+        requested = [s.strip() for s in spiders.split(",")]
+        invalid = [s for s in requested if s not in active_spiders]
+        if invalid:
+            raise ValueError(
+                f"Invalid spider names: {', '.join(invalid)}. Active: {', '.join(active_spiders)}"
+            )
+        spiders = ",".join(requested)
 
-        with get_db_connection(DB_SETTINGS) as conn:
-            with conn.cursor() as cur:
-                for spider_name, stats in crawl_results.items():
-                    cur.execute(
-                        insert_query,
-                        (
-                            spider_name,
-                            stats['start_time'],
-                            stats['finish_time'],
-                            stats['count'],
-                            stats['reason'],
-                            stats['runtime']
-                        )
-                    )
-                conn.commit()
-
-        print('✅ Crawl stats successfully loaded to DB')
-    except Exception as e:
-        print(f"❌ --- Error during spider execution or DB insertion: {e} ---")
-        sys.exit(1)
+    crawl_results = execute_crawls(itemcount=itemcount, spiders=spiders)
+    return crawl_results
 
 
-def step_load(args):
-    """Batch-load JSON files produced by spiders into raw_discounts."""
-    run_step(["python", "load_raw_json.py"], "Load raw JSON to Postgres")
+@task(name="load-raw-json", log_prints=True)
+def task_load_raw_json(landing_dir: str = None) -> None:
+    load_raw_json_data(landing_dir=landing_dir)
 
 
-def step_dbt(args):
-    """Run dbt build (deps pre-installed in Docker image)."""
-    run_step(
-        ["uv", "run", "--group", "orchestrator", "dbt", "build",
-         "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR,
-         "--target", args.dbt_target],
-        "dbt Build"
+@task(name="run-dbt", log_prints=True)
+def task_run_dbt(dbt_target: str = "prod") -> None:
+    print(f"🚀 Running dbt build with target: {dbt_target}")
+    subprocess.run(
+        [
+            "uv", "run", "--group", "orchestrator",
+            "dbt", "build",
+            "--target", dbt_target,
+        ],
+        check=True,
+        text=True,
     )
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Orchestrate ETL Pipeline")
-    parser.add_argument(
-        "--step",
-        choices=["spiders", "load", "dbt"],
-        default=None,
-        help="Run a single pipeline step. Omit to run all steps in sequence."
-    )
-    parser.add_argument("--itemcount", type=int, default=0, help="Pass item count limit to spiders")
-    parser.add_argument("--spiders", type=str, default='', help="Comma-separated list of spiders to run (default: all)")
-    parser.add_argument("--dbt-target", type=str, default='dev_docker', help="dbt target to use (default: dev_docker)")
+@flow(name="discount-tracker-pipeline", log_prints=True)
+def discount_tracker_pipeline(
+    spiders: str = "",
+    itemcount: int = 0,
+    dbt_target: str = "prod",
+) -> None:
+    task_run_spiders(spiders=spiders, itemcount=itemcount)
+    task_load_raw_json()
+    task_run_dbt(dbt_target=dbt_target)
 
-    args = parser.parse_args()
-
-    active_spider_list = get_active_spiders()
-
-    if args.spiders == '':
-        args.spiders = ','.join(active_spider_list)
-    else:
-        requested_spiders = [s.strip() for s in args.spiders.split(',')]
-        invalid_spiders = [s for s in requested_spiders if s not in active_spider_list]
-        if invalid_spiders:
-            print(f"❌ Invalid spider names: {', '.join(invalid_spiders)}")
-            print(f"Available active spiders: {', '.join(active_spider_list)}")
-            sys.exit(1)
-        args.spiders = ','.join(requested_spiders)
-
-    if args.step == "spiders":
-        print("🎼 Running step: Spiders")
-        step_spiders(args)
-    elif args.step == "load":
-        print("🎼 Running step: Load")
-        step_load(args)
-    elif args.step == "dbt":
-        print("🎼 Running step: dbt")
-        step_dbt(args)
-    else:
-        print("🎼 Running full pipeline: Spiders → Load → dbt")
-        step_spiders(args)
-        step_load(args)
-        step_dbt(args)
-
-    print("\n🎉 Pipeline finished successfully.")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Orchestrate ETL Pipeline")
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Run in serve mode: register the deployment and poll for runs (long-running)",
+    )
+    parser.add_argument("--spiders", type=str, default="", help="Comma-separated list of spiders (default: all active)")
+    parser.add_argument("--itemcount", type=int, default=0, help="Item count limit for spiders (0 = unlimited)")
+    parser.add_argument("--dbt-target", type=str, default="prod", help="dbt target (default: prod)")
+    args = parser.parse_args()
+
+    if args.serve:
+        discount_tracker_pipeline.serve(name="discount-tracker-pipeline")
+    else:
+        discount_tracker_pipeline(
+            spiders=args.spiders,
+            itemcount=args.itemcount,
+            dbt_target=args.dbt_target,
+        )

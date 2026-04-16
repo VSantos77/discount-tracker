@@ -79,25 +79,23 @@ def load_file(conn, file_path: Path, spider_name: str, scraped_at: datetime.date
     return len(rows)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Batch-load Scrapy .jsonl feed files into raw_discounts")
-    parser.add_argument(
-        '--landing-dir',
-        type=str,
-        default=str(get_project_root_path() / 'data' / 'landing'),
-        help='Root landing directory containing per-spider subdirectories (default: data/landing/)',
-    )
-    args = parser.parse_args()
+def load_raw_json_data(landing_dir: str = None) -> None:
+    """
+    Load all .jsonl files found under landing_dir into raw_discounts.
+    Callable directly from orchestrate.py or other Python code.
+    Raises on failure instead of calling sys.exit so callers can handle errors.
+    """
+    if landing_dir is None:
+        landing_dir = str(get_project_root_path() / 'data' / 'landing')
 
-    landing_dir = Path(args.landing_dir)
+    landing_path = Path(landing_dir)
 
-    if not landing_dir.exists():
-        print(f"Landing directory not found: {landing_dir}")
-        sys.exit(1)
+    if not landing_path.exists():
+        raise FileNotFoundError(f"Landing directory not found: {landing_path}")
 
     # Collect all .jsonl files from per-spider subdirectories (skip processed/ inside each)
     jsonl_files: list[tuple[Path, str]] = []  # (file_path, spider_name)
-    for spider_dir in sorted(landing_dir.iterdir()):
+    for spider_dir in sorted(landing_path.iterdir()):
         if not spider_dir.is_dir() or spider_dir.name == 'processed':
             continue
         spider_name = spider_dir.name
@@ -105,8 +103,8 @@ def main():
             jsonl_files.append((file_path, spider_name))
 
     if not jsonl_files:
-        print(f"No .jsonl files found under {landing_dir}")
-        sys.exit(0)
+        print(f"No .jsonl files found under {landing_path}")
+        return
 
     print(f"Found {len(jsonl_files)} file(s) to process\n")
 
@@ -120,7 +118,7 @@ def main():
                 print(f"  [skip] {file_path} — filename does not match expected pattern")
                 continue
 
-            print(f"  Loading {file_path.relative_to(landing_dir)} (spider={spider_name}, scraped_at={scraped_at.isoformat()})")
+            print(f"  Loading {file_path.relative_to(landing_path)} (spider={spider_name}, scraped_at={scraped_at.isoformat()})")
 
             try:
                 n = load_file(conn, file_path, spider_name, scraped_at)
@@ -135,9 +133,26 @@ def main():
             except Exception as e:
                 conn.rollback()
                 print(f"  ❌ Failed to load {file_path.name}: {e}")
-                sys.exit(1)
+                raise
 
     print(f"\n✅ Done — {total_inserted} total rows inserted from {total_files} file(s)")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Batch-load Scrapy .jsonl feed files into raw_discounts")
+    parser.add_argument(
+        '--landing-dir',
+        type=str,
+        default=None,
+        help='Root landing directory containing per-spider subdirectories (default: data/landing/)',
+    )
+    args = parser.parse_args()
+
+    try:
+        load_raw_json_data(landing_dir=args.landing_dir)
+    except Exception as e:
+        print(f"❌ {e}")
+        sys.exit(1)
 
 
 if __name__ == '__main__':

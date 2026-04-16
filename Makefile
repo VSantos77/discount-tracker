@@ -14,7 +14,7 @@ down:
 
 # Step 1: Run Scrapy spiders, write JSON files to data/
 run-spiders:
-	docker exec -it discount_orchestrator python orchestrate.py --step=spiders
+	docker exec -it discount_orchestrator python orchestrate.py --spiders=$(SPIDERS)
 
 # Step 2: Batch-load JSON files from data/ into raw_discounts table
 run-load:
@@ -22,7 +22,7 @@ run-load:
 
 # Step 3: Run dbt deps + dbt build
 run-dbt:
-	docker exec -it discount_orchestrator python orchestrate.py --step=dbt --dbt-target=prod
+	docker exec -it discount_orchestrator python orchestrate.py --dbt-target=prod
 
 # ── Full pipeline ──────────────────────────────────────────────────────────────
 
@@ -33,3 +33,13 @@ run-pipeline:
 # Run all three steps with a limited item count (quick local test)
 run-pipeline-test:
 	docker exec -it discount_orchestrator python orchestrate.py --itemcount=5 --dbt-target=prod
+
+# ── Prefect ────────────────────────────────────────────────────────────────────
+
+# Trigger a manual pipeline run via the Prefect API (flow must be registered / container running)
+prefect-run:
+	docker exec -it discount_orchestrator uv run --group orchestrator prefect deployment run 'discount-tracker-pipeline/discount-tracker-pipeline'
+
+# Open a shell in the orchestrator container (useful for ad-hoc prefect CLI commands)
+prefect-shell:
+	docker exec -it discount_orchestrator bash
