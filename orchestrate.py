@@ -1,9 +1,8 @@
 import argparse
 import subprocess
 import yaml
-
 from prefect import flow, task
-
+from prefect.artifacts import create_table_artifact
 from load_raw_json import load_raw_json_data
 from run_spiders import execute_crawls
 from utils.functions import get_project_root_path
@@ -32,6 +31,22 @@ def task_run_spiders(spiders: str = "", itemcount: int = 0) -> dict:
         spiders = ",".join(requested)
 
     crawl_results = execute_crawls(itemcount=itemcount, spiders=spiders)
+    
+    # Create artifact with crawl results for downstream tasks
+    create_table_artifact(
+        key="spider-crawl-stats",
+        table=[
+            {
+                "spider": name,
+                "items_scraped": stats["count"],
+                "runtime_s": round(stats["runtime"], 1),
+                "finish_reason": stats["reason"],
+            }
+            for name, stats in crawl_results.items()
+        ],
+        description="Items scraped per spider for this run",
+    )
+    
     return crawl_results
 
 
