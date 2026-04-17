@@ -1,11 +1,12 @@
 import argparse
-import subprocess
 import yaml
 from prefect import flow, task
 from prefect.artifacts import create_table_artifact
+from prefect_shell import ShellOperation
 from load_raw_json import load_raw_json_data
 from run_spiders import execute_crawls
 from utils.functions import get_project_root_path
+from os import getenv
 
 
 def get_active_spiders() -> list[str]:
@@ -55,18 +56,11 @@ def task_load_raw_json(landing_dir: str = None) -> None:
     load_raw_json_data(landing_dir=landing_dir)
 
 
-@task(name="run-dbt", log_prints=True)
+@task(name="run-dbt")
 def task_run_dbt(dbt_target: str = "prod") -> None:
-    print(f"🚀 Running dbt build with target: {dbt_target}")
-    subprocess.run(
-        [
-            "uv", "run", "--group", "orchestrator",
-            "dbt", "build",
-            "--target", dbt_target,
-        ],
-        check=True,
-        text=True,
-    )
+    ShellOperation(
+        commands=[f"dbt build --target {dbt_target}"],
+    ).run()
 
 
 @flow(name="discount-tracker-pipeline", log_prints=True)
