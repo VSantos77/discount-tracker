@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-04-17
+
+### Changed
+- `task_run_dbt` now runs `dbt build` via `ShellOperation` from `prefect-shell`, streaming stdout line-by-line to Prefect's logger instead of using `PrefectDbtRunner`.
+
+### Removed
+- Removed `prefect-dbt` dependency; replaced with `prefect-shell`.
+
+---
+
+## 2026-04-16
+
+### Added
+- Prefect orchestration: `orchestrate.py` rewritten using `@flow` and `@task` decorators; pipeline serve mode enabled (`--serve` flag).
+- `prefect-server` service added to `docker-compose.yml` with a dedicated `prefect_data` volume.
+- Orchestrator container now starts in Prefect serve mode (`python orchestrate.py --serve`).
+- `PREFECT_API_URL` environment variable wired into the orchestrator container.
+- Makefile targets `prefect-run` and `prefect-shell` added for triggering deployments and opening a container shell.
+- Prefect table artifact in `task_run_spiders` to surface per-spider scraped item counts, runtimes, and finish reasons in the Prefect UI.
+
+### Changed
+- `load_raw_json.py`: extracted `load_raw_json_data()` as a callable function (raises on failure) so it can be invoked directly from `orchestrate.py`; `main()` is now a thin CLI wrapper.
+- `docker-compose.yml`: `DBT_PROFILES_DIR` and `DBT_PROJECT_DIR` hardcoded to container paths instead of relying on host env vars.
+- Makefile: updated `run-spiders` and `run-dbt` targets to match new `orchestrate.py` argument interface.
+
+---
+
 ## 2026-04-14
 
 ### Added
