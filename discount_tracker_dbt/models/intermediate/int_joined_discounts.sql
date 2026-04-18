@@ -9,9 +9,10 @@
 
 with
 
-bbva    as (select * from {{ ref('stg_bbva') }}),
-galicia as (select * from {{ ref('stg_galicia') }}),
-santander as (select * from {{ ref('stg_santander') }}),
+bbva              as (select * from {{ ref('stg_bbva') }}),
+galicia           as (select * from {{ ref('stg_galicia') }}),
+cuentadni         as (select * from {{ ref('stg_cuentadni') }}),
+bancoprovincia    as (select * from {{ ref('stg_bancoprovincia') }}),
 {# modo    as (select * from {{ ref('stg_modo') }}), #}
 
 combined as (
@@ -19,9 +20,9 @@ combined as (
     union all
     select * from galicia
     union all
-    select * from santander
-    {# union all
-    select * from modo #}
+    select * from cuentadni
+    union all
+    select * from bancoprovincia
 )
 
 select

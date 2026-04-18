@@ -7,3 +7,7 @@ spiders:
     active: false
   - name: santander
     active: false
+  - name: cuentadni
+    active: true
+  - name: bancoprovincia
+    active: false
