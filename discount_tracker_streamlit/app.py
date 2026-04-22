@@ -2,9 +2,13 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from html import escape
-from utils.functions import get_db_connection
-from utils.functions import get_project_root_path
-from utils.configs import DB_SETTINGS
+from google.oauth2 import service_account
+from google.cloud import bigquery
+
+### BIGQUERY AUTH
+creds = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
+client = bigquery.Client(credentials=creds, project=st.secrets["gcp_service_account"]["project_id"])
+###
 
 # Page Configuration
 st.set_page_config(
@@ -17,11 +21,9 @@ st.set_page_config(
 @st.cache_data(ttl=600)
 def load_discount_data():
     try:
-        with get_db_connection(DB_SETTINGS) as conn:
-            with conn.cursor() as cur:
-                with open(get_project_root_path() / 'utils' / 'queries' / 'streamlit_data.sql') as f:
-                    query = f.read()
-                df = pd.read_sql(query, conn)
+        query = "SELECT * FROM `vocal-tracer-484119-t7.prod_dbt_analytics.streamlit_data`"
+        df = client.query(query).to_dataframe()
+        
         return df
     except Exception as e:
         st.error(
