@@ -6,15 +6,15 @@
 with discounts_source as (
     select
         *
-    from {{ ref('stg_discounts') }}
+    from {{ ref('int_joined_discounts') }}
 ),
 
 discounts as (
     -- Deduplicate incoming batch to prevent inserting duplicates
     -- that don't exist in target yet
-    select distinct on (discount_id) *
+    select *
     from discounts_source
-    order by discount_id, scraped_at desc
+    qualify row_number() over (partition by discount_id order by scraped_at_dt desc) = 1
 ),
 
 issuers as (
@@ -47,10 +47,10 @@ select
     d.discount_valid_online,
     d.discount_valid_instore,
     d.discount_metadata,
-    d.scraped_at
+    d.scraped_at_dt
 from discounts d
-join issuers i on d.issuer_name = i.issuer_name
-join merchants m on d.merchant_name = m.merchant_name 
+left join issuers i on d.issuer_name = i.issuer_name
+left join merchants m on d.merchant_name = m.merchant_name 
     and d.merchant_category_name = m.merchant_category_name
 
 {% if is_incremental() %}

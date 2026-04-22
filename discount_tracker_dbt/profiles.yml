@@ -1,29 +1,25 @@
-discount_tracker:
-  target: dev_local
+discount-tracker-bq:
+  target: dev
   outputs:
     prod:
-      type: postgres
-      host: "{{ env_var('DB_HOST') }}"
-      user: "{{ env_var('DB_USER') }}"
-      password: "{{ env_var('DB_PASSWORD') }}"
-      port: "{{ env_var('POSTGRES_DB_PORT') | as_number }}"
-      dbname: "{{ env_var('DB_NAME') }}"
-      schema: dbt_prod
+      type: bigquery
+      method: service-account
+      # Use the absolute path to the same key you used for Terraform/Scrapy
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: prod # This is where dbt will CREATE your new tables
+      threads: 4
+      timeout_seconds: 300
+      location: us-east1 # Must match your GCS bucket/BigQuery dataset location
+      priority: interactive
     dev_local:
-      type: postgres
-      host: localhost
-      user: "{{ env_var('DB_USER') }}"
-      password: "{{ env_var('DB_PASSWORD') }}"
-      port: "{{ env_var('POSTGRES_DB_PORT') | as_number }}"
-      dbname: "{{ env_var('DB_NAME') }}"
-      schema: dbt_dev
-      threads: 1
-    dev_docker:
-      type: postgres
-      host: "{{ env_var('DB_HOST') }}"
-      user: "{{ env_var('DB_USER') }}"
-      password: "{{ env_var('DB_PASSWORD') }}"
-      port: "{{ env_var('POSTGRES_DB_PORT') | as_number }}"
-      dbname: "{{ env_var('DB_NAME') }}"
-      schema: dbt_dev
-      threads: 1
+      type: bigquery
+      method: service-account
+      # Use the absolute path to the same key you used for Terraform/Scrapy
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: prod # This is where dbt will CREATE your new tables
+      threads: 4
+      timeout_seconds: 300
+      location: us-east1 # Must match your GCS bucket/BigQuery dataset location
+      priority: interactive

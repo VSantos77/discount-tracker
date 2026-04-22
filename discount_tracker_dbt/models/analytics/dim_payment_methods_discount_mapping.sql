@@ -6,7 +6,7 @@
 with source as (
     select
         *
-    from {{ ref('stg_discounts') }}
+    from {{ ref('int_joined_discounts') }}
 ),
 
 mapped as (
@@ -18,10 +18,9 @@ mapped as (
         discount_id,
         dm.payment_method_id
     from source s
-    cross join lateral jsonb_to_recordset(s.discount_payment_method) as pm(card TEXT, card_type TEXT)
     join {{ ref('dim_payment_methods')}} dm
-        on dm.card_name = pm.card
-        and dm.card_type = pm.card_type
+        on dm.card_name = JSON_VALUE(s.discount_payment_method, '$.card')
+        and dm.card_type = JSON_VALUE(s.discount_payment_method, '$.card_type')
 )
 
 select

@@ -41,7 +41,7 @@ select
         d.discount_valid_online,
         d.discount_valid_instore,
         d.discount_metadata,
-        d.scraped_at
+        d.scraped_at_dt
 from
     discounts d
 join merchants m on d.merchant_id = m.merchant_id

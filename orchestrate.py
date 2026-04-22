@@ -1,90 +1,89 @@
-from run_spiders import execute_crawls
-from utils.functions import get_db_connection
-from utils.functions import get_project_root_path
-from utils.configs import DB_SETTINGS
-from utils.configs import DBT_PROJECT_DIR
-import subprocess
-import sys
-import time
-import os
 import argparse
+import yaml
+from prefect import flow, task
+from prefect.artifacts import create_table_artifact
+from prefect_shell import ShellOperation
+from run_spiders import execute_crawls
+from utils.functions import get_project_root_path
+from os import getenv
 
-def run_step(command, step_name):
-    print(f"\n🚀 --- Starting: {step_name} ---")
-    start = time.time()
-    try:
-        # Use sys.executable to ensure we use the same python interpreter (from the venv)
-        if command[0] == "python":
-            command[0] = sys.executable
-            
-        # Run the command and wait for it to finish. Check=True raises error on non-zero exit.
-        subprocess.run(
-            command,
-            check=True,
-            text=True,
-            env=os.environ.copy() # Pass current env vars (DB credentials, etc.)
-        )
-        duration = time.time() - start
-        print(f"✅ --- Completed: {step_name} (took {duration:.2f}s) ---")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ --- Failed: {step_name} (Exit Code: {e.returncode}) ---")
-        sys.exit(e.returncode)
 
-def main():
-    parser = argparse.ArgumentParser(description="Orchestrate ETL Pipeline")
-    parser.add_argument("--itemcount", type=int, default=0, help="Pass item count limit to spiders")
-    parser.add_argument("--spiders", type=str, default='', help="Comma-separated list of spiders to run (default: all)")
-    parser.add_argument("--dry-run",type=str, default='0', help="Run spiders in dry-run mode (no items scraped)")
-    parser.add_argument("--dbt-target", type=str, default='dev_docker', help="dbt target to use (default: dev_docker)")
+def get_active_spiders() -> list[str]:
+    path = get_project_root_path() / "utils" / "spider_config.yaml"
+    with open(path, "r") as f:
+        config = yaml.safe_load(f)
+    return [s["name"] for s in config["spiders"] if s["active"]]
+
+
+@task(name="run-spiders", log_prints=True)
+def task_run_spiders(spiders: str = "", itemcount: int = 0) -> dict:
+    active_spiders = get_active_spiders()
+
+    if not spiders:
+        spiders = ",".join(active_spiders)
+    else:
+        requested = [s.strip() for s in spiders.split(",")]
+        invalid = [s for s in requested if s not in active_spiders]
+        if invalid:
+            raise ValueError(
+                f"Invalid spider names: {', '.join(invalid)}. Active: {', '.join(active_spiders)}"
+            )
+        spiders = ",".join(requested)
+
+    crawl_results = execute_crawls(itemcount=itemcount, spiders=spiders)
     
-    args = parser.parse_args()
-
-    print("🎼 Starting Orchestration Pipeline...")
+    # Create artifact with crawl results for downstream tasks
+    create_table_artifact(
+        key="spider-crawl-stats",
+        table=[
+            {
+                "spider": name,
+                "items_scraped": stats["count"],
+                "runtime_s": round(stats["runtime"], 1),
+                "finish_reason": stats["reason"],
+            }
+            for name, stats in crawl_results.items()
+        ],
+        description="Items scraped per spider for this run",
+    )
     
-    # 1. Run Scrapy Spiders (using your existing runner)
-    try:
-        crawl_results = execute_crawls(
-            itemcount=args.itemcount,
-            spiders=args.spiders,
-            dry_run=args.dry_run
-        )
+    return crawl_results
 
-        with open(get_project_root_path() / "utils" / "queries" / "insert_to_scrapy_run_stats.sql", 'r') as f:
-            insert_query = f.read()
 
-        # Store results in DB
-        with get_db_connection(DB_SETTINGS) as conn:
-            with conn.cursor() as cur:
-                for spider_name, stats in crawl_results.items():
-                    cur.execute(
-                        insert_query,
-                        (
-                            spider_name,
-                            stats['start_time'],
-                            stats['finish_time'],
-                            stats['count'],
-                            stats['reason'],
-                            stats['runtime']
-                        )
-                    )
-                conn.commit()
+@task(name="run-dbt")
+def task_run_dbt(dbt_target: str = "prod") -> None:
+    ShellOperation(
+        commands=[f"dbt build --target {dbt_target}"],
+    ).run()
 
-        print('✅ Crawl results successfully loaded to DB')
-    except Exception as e:
-        print(f"❌ --- Error during spider execution or DB insertion: {e} ---")
-        sys.exit(1)
 
-    # 2. Run dbt Build (runs models, tests, snapshots, seeds)
-    # We target 'dev_docker' which uses the env vars from docker-compose
+@flow(name="discount-tracker-pipeline", log_prints=True)
+def discount_tracker_pipeline(
+    spiders: str = "",
+    itemcount: int = 0,
+    dbt_target: str = "prod",
+) -> None:
+    task_run_spiders(spiders=spiders, itemcount=itemcount)
+    task_run_dbt(dbt_target=dbt_target)
 
-    # First run dbt deps
-
-    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "deps", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR, "--target", args.dbt_target]
-    run_step(dbt_args, "dbt Deps")
-
-    # Then run dbt build
-    dbt_args = ["uv", "run", "--group", "orchestrator", "dbt", "build", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR, "--target", args.dbt_target]
-    run_step(dbt_args, "dbt Build")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Orchestrate ETL Pipeline")
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Run in serve mode: register the deployment and poll for runs (long-running)",
+    )
+    parser.add_argument("--spiders", type=str, default="", help="Comma-separated list of spiders (default: all active)")
+    parser.add_argument("--itemcount", type=int, default=0, help="Item count limit for spiders (0 = unlimited)")
+    parser.add_argument("--dbt-target", type=str, default="prod", help="dbt target (default: prod)")
+    args = parser.parse_args()
+
+    if args.serve:
+        discount_tracker_pipeline.serve(name="discount-tracker-pipeline")
+    else:
+        discount_tracker_pipeline(
+            spiders=args.spiders,
+            itemcount=args.itemcount,
+            dbt_target=args.dbt_target,
+        )

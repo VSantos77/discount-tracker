@@ -1,6 +1,4 @@
 import scrapy
-import json
-from discount_tracker_scrapy.items import DiscountItem, GaliciaDiscountLoader
 
 class GaliciaSpider(scrapy.Spider):
     name = "galicia"
@@ -60,35 +58,9 @@ class GaliciaSpider(scrapy.Spider):
         self.logger.info(f"Parsing details for discount ID: {response.meta['discount_id']}")
 
         data = response.json()['data']
-        
-        loader = GaliciaDiscountLoader(item=DiscountItem(), response=response)
 
-        loader.add_value('issuer_name', "Banco Galicia")
-        
-        # Handle discounts for entire categories (e.g all electronics shops)
-        if data.get('tipoPromocion') == 'Categoria':
-            merchant_name = data.get('categoria', {}).get('descripcion')
-            category_name = merchant_name
-        else:
-            merchant_name = data.get('marca').get('nombre', None)
-            category_name = data.get('marca', {}).get('categoria', {}).get('descripcion')
-        
-        loader.add_value('merchant_name', merchant_name)
-        loader.add_value('merchant_category_name', category_name)
-        loader.add_value('discount_name', None)
-        loader.add_value('discount_description', data.get('descripcionAdicional', None))
-        loader.add_value('discount_url', None)
-        loader.add_value('discount_start_date', data.get('fechaDesde', None))
-        loader.add_value('discount_end_date', data.get('fechaHasta', None))
-        loader.add_value('discount_terms_and_conditions', data.get('legales', None))
-        loader.add_value('discount_rate', data.get('porcentajeAhorro', None))
-        loader.add_value('discount_max_discount_amount', data.get('topeReintegro', None))
-        loader.add_value('discount_min_purchase_amount', None)
-        loader.add_value('discount_no_interest_installment_qty', data.get('cuotaSinInteresHasta', None))
-        loader.add_value('discount_valid_days_list', data.get('diasAplicacion', None))
-        loader.add_value('discount_valid_online', data.get('tiendaOnline', None))
-        loader.add_value('discount_valid_instore', data.get('tiendaFisica', None))
-        loader.add_value('discount_metadata', data)
-        loader.add_value('discount_payment_method', data.get('mediosDePago', {}))
-
-        yield loader.load_item()
+        yield {
+            'source_id': response.meta['discount_id'],
+            # Full detail API response — untransformed
+            **data,
+        }

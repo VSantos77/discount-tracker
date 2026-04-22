@@ -45,9 +45,23 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - .:/app
+      - .:/app:ro
       - /app/.venv
     command: uv run streamlit run discount_tracker_streamlit/app.py --server.port 8501 --server.address 0.0.0.0
+
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: discount_prefect_server
+    restart: unless-stopped
+    environment:
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+      - PREFECT_API_URL=http://prefect-server:4200/api
+      - PREFECT_UI_API_URL=http://localhost:4201/api
+    ports:
+      - "4201:4200"
+    volumes:
+      - prefect_data:/root/.prefect
+    command: prefect server start
 
   orchestrator:
     image: discount-tracker-orchestrator:1.0
@@ -57,21 +71,23 @@ services:
     container_name: discount_orchestrator
     depends_on:
       - db
+      - prefect-server
     environment:
       - DB_HOST=${DB_HOST}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB_PORT=${POSTGRES_DB_PORT}
-      - DBT_PROFILES_DIR=${DBT_PROFILES_DIR}
-      - DBT_PROJECT_DIR=${DBT_PROJECT_DIR}
+      - DBT_PROFILES_DIR=/app/discount_tracker_dbt
+      - DBT_PROJECT_DIR=/app/discount_tracker_dbt
       - UV_LINK_MODE=${UV_LINK_MODE}
+      - PREFECT_API_URL=http://prefect-server:4200/api
     volumes:  
       - .:/app
-      - /app/.venv                                                 # Avoid volume conflicts with the virtual environment
-      - dbt_packages_volume:/app/discount_tracker_dbt/dbt_packages # Separate volume for dbt_packages to avoid conflicts
-    command: sleep infinity
+      - /app/.venv                              # Avoid volume conflicts with the virtual environment
+      - /app/discount_tracker_dbt/dbt_packages  # Mask host folder; packages are baked into the image
+    command: uv run --group orchestrator python orchestrate.py --serve
 
 volumes:
   postgres_data:
-  dbt_packages_volume:
+  prefect_data:

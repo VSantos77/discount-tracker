@@ -6,3 +6,13 @@ test/
 logs
 .vscode/
 /development
+data/landing/
+.agents/
+*.json
+terraform.tfstate*
+Checklist.md
+*.code-workspace
+.user.yml
+.terraform/
+*.exe
+terraform.tfstate*

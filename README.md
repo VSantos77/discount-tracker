@@ -122,7 +122,7 @@ Detailed flow:
    - Schema bootstrapping in [init-db/init.sql](init-db/init.sql)
 
 3. **Transformations** ([discount_tracker_dbt](discount_tracker_dbt))
-   - Staging model: [discount_tracker_dbt/models/staging/stg_discounts.sql](discount_tracker_dbt/models/staging/stg_discounts.sql)
+   - Staging model: [discount_tracker_dbt/models/staging/int_joined_discounts.sql](discount_tracker_dbt/models/staging/int_joined_discounts.sql)
    - Dimensions: [discount_tracker_dbt/models/marts/dim_issuers.sql](discount_tracker_dbt/models/marts/dim_issuers.sql), [discount_tracker_dbt/models/marts/dim_merchants.sql](discount_tracker_dbt/models/marts/dim_merchants.sql), [discount_tracker_dbt/models/marts/dim_payment_methods.sql](discount_tracker_dbt/models/marts/dim_payment_methods.sql)
    - Fact: [discount_tracker_dbt/models/marts/fct_discounts.sql](discount_tracker_dbt/models/marts/fct_discounts.sql)
    - Streamlit mart: [discount_tracker_dbt/models/marts/streamlit/streamlit_data.sql](discount_tracker_dbt/models/marts/streamlit/streamlit_data.sql)

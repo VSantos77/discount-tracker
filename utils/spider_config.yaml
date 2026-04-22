@@ -1,0 +1,13 @@
+spiders:
+  - name: galicia
+    active: true
+  - name: bbva
+    active: true
+  - name: modo
+    active: false
+  - name: santander
+    active: false
+  - name: cuentadni
+    active: true
+  - name: bancoprovincia
+    active: false

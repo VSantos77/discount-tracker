@@ -6,13 +6,13 @@
 #     https://docs.scrapy.org/en/latest/topics/settings.html
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+import datetime as _dt
 import os
 
-DB_HOST = os.getenv('DB_HOST')
-DB_NAME = os.getenv('DB_NAME')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_PORT = os.getenv('POSTGRES_DB_PORT', 5432)
+GCS_BUCKET = os.getenv('GCS_BUCKET', '')
+_today = _dt.datetime.utcnow().strftime('%Y-%m-%d')
+GCS_PROJECT_ID = os.getenv('GCP_PROJECT_ID', '')
+STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local')
 
 
 BOT_NAME = "discount_tracker_scrapy"
@@ -31,7 +31,7 @@ ROBOTSTXT_OBEY = True
 # Concurrency and throttling settings
 CONCURRENT_REQUESTS = 16
 CONCURRENT_REQUESTS_PER_DOMAIN = 8
-DOWNLOAD_DELAY = 0.1
+DOWNLOAD_DELAY = 0.5
 
 # Disable cookies (enabled by default)
 #COOKIES_ENABLED = False
@@ -63,26 +63,40 @@ DOWNLOAD_DELAY = 0.1
 #    "scrapy.extensions.telnet.TelnetConsole": None,
 #}
 
-# Configure item pipelines
-# See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
+# No active item pipelines — export is handled by FEEDS below.
 ITEM_PIPELINES = {
-   "discount_tracker_scrapy.pipelines.CheckMandatoryFieldsPipeline": 300,
-   "discount_tracker_scrapy.pipelines.EnsureFullSchemaPipeline" : 400,
-   "discount_tracker_scrapy.pipelines.SendToPostgresPipeline": 800,
+    "discount_tracker_scrapy.pipelines.RawPayloadWrapperPipeline": 100,
+}
+
+# Feed exports: one .jsonl file per spider per run.
+# STORAGE_BACKEND=gcs  → writes to gs://<GCS_BUCKET>/landing/<spider>/<YYYY>/<MM>/<DD>/<timestamp>.jsonl
+# STORAGE_BACKEND=local → writes to data/landing/<spider>/<timestamp>.jsonl (default)
+_feed_uri = (
+    f'gs://{GCS_BUCKET}/landing/spider=%(name)s/scraped_at_dt={_today}/%(time)s.jsonl'
+    if STORAGE_BACKEND == 'gcs'
+    else 'data/landing/%(name)s/%(time)s.jsonl'
+)
+FEEDS = {
+    _feed_uri: {
+        'format': 'jsonlines',
+        'encoding': 'utf8',
+        'store_empty': False,
+        'overwrite': True,
+    }
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
-#AUTOTHROTTLE_ENABLED = True
+AUTOTHROTTLE_ENABLED = True
 # The initial download delay
-#AUTOTHROTTLE_START_DELAY = 5
+AUTOTHROTTLE_START_DELAY = 5
 # The maximum download delay to be set in case of high latencies
-#AUTOTHROTTLE_MAX_DELAY = 60
+AUTOTHROTTLE_MAX_DELAY = 60
 # The average number of requests Scrapy should be sending in parallel to
 # each remote server
-#AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
+AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
 # Enable showing throttling stats for every response received:
-#AUTOTHROTTLE_DEBUG = False
+AUTOTHROTTLE_DEBUG = False
 
 # Enable and configure HTTP caching (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html#httpcache-middleware-settings

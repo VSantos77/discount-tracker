@@ -7,7 +7,7 @@ import argparse
 import os
 import datetime
 
-def execute_crawls(spiders='', itemcount=0, page_limit=0, dry_run='false'):
+def execute_crawls(spiders='', itemcount=0, page_limit=0):
     """
     Main entry point for orchestrate.py to run spiders and get stats back.
     """
@@ -50,7 +50,7 @@ def execute_crawls(spiders='', itemcount=0, page_limit=0, dry_run='false'):
     # Schedule crawls
     for spider_name in valid_spider_names:
         # Pass parameters directly to the spider
-        process.crawl(spider_name, itemcount=itemcount, page_limit=page_limit, dry_run=dry_run)
+        process.crawl(spider_name, itemcount=itemcount, page_limit=page_limit)
 
     dispatcher.connect(spider_results, signal=signals.spider_closed)
 
