@@ -16,3 +16,8 @@ Checklist.md
 .terraform/
 *.exe
 terraform.tfstate*
+secrets.toml
+temp_streamlit_env/
+target/
+dbt_packages/
+logs/
