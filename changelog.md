@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-04-25
+
+### Added
+- New Scrapy spider `cuentadni` for Banco Provincia Cuenta DNI benefits (JSON API).
+- New Scrapy spider `bancoprovincia` for main Banco Provincia benefits page (HTML scraping).
+- New dbt staging model `stg_cuentadni.sql` with `.NET` epoch date parsing and `titulo_fecha` → weekday mapping.
+- New dbt staging model `stg_bancoprovincia.sql`.
+- `int_joined_discounts.sql` updated to union both new Banco Provincia staging models.
+- `utils/spider_config.yaml` updated with `cuentadni` and `bancoprovincia` entries (active).
+- `RawPayloadWrapperPipeline` in `pipelines.py`: wraps each scraped item as `{"raw_payload": <item>}` before FEED export so GCS JSONL files have a consistent single-column schema for BigQuery.
+- `google-cloud-storage` and `neon-api` added to `pyproject.toml` dependencies.
+- BigQuery external table `raw_discounts` defined in Terraform (`google_bigquery_table.raw_discounts`) with explicit JSON schema, hive partitioning on `{spider:STRING}/{scraped_at_dt:DATE}`, and `autodetect = false`.
+- `dbt-bigquery` added as a dependency; `profiles.yml` updated with a BigQuery target (`discount-tracker-bq`).
+- `stg_galicia.sql` rewritten for BigQuery SQL dialect (`JSON_VALUE`, `PARSE_DATE`, `SAFE_CAST`, `SPLIT`, `JSON_OBJECT`, etc.).
+- `sources.yml` updated to reflect BigQuery external table columns (`spider`, `scraped_at_dt`, `raw_payload`).
+
+### Changed
+- `settings.py`: GCS feed URI now includes a date folder (`landing/{spider}/{YYYY-MM-DD}/{timestamp}.jsonl`) for BigQuery hive partition alignment. DB credential variables removed (no longer needed by Scrapy).
+- `ITEM_PIPELINES` enabled in `settings.py` with `RawPayloadWrapperPipeline` at priority 100.
+- `orchestrate.py`: pipeline simplified to `run-spiders` → `run-dbt`; `task_load_raw_json` task and its import removed.
+- `profiles.yml`: migrated from `dbt-postgres` to `dbt-bigquery`; profile renamed to `discount-tracker-bq`.
+
+### Removed
+- `load_raw_json.py` deleted — Scrapy writes directly to GCS; BigQuery reads via external tables.
+- `utils/configs.py` deleted — only existed to provide `DB_SETTINGS` for the load script.
+- `init-db/` directory deleted — Docker Postgres init script no longer relevant.
+- `psycopg2-binary` removed from `pyproject.toml`.
+
+---
+
 ## 2026-04-17
 
 ### Changed
