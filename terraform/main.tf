@@ -69,6 +69,7 @@ resource "google_bigquery_dataset" "dataset_dev_dbt_analytics" {
 resource "google_bigquery_table" "raw_discounts" {
   dataset_id = google_bigquery_dataset.dataset_raw_source.dataset_id
   table_id   = "raw_discounts"
+  deletion_protection = false
 
   # Schema: single JSON column wrapping the full spider item.
   # Partition virtual columns (spider, date) are injected by hive partitioning.
@@ -90,6 +91,122 @@ resource "google_bigquery_table" "raw_discounts" {
       # landing/{spider:STRING}/{scraped_at_dt:DATE}/{timestamp}.jsonl
       source_uri_prefix = "gs://${google_storage_bucket.data_lake.name}/landing/{spider:STRING}/{scraped_at_dt:DATE}"
       require_partition_filter = true
+    }
+  }
+}
+
+# 1. Create a dedicated SA for the Scraper
+resource "google_service_account" "scraper_sa" {
+  account_id   = "discount-tracker-scraper"
+  display_name = "Scraper Service Account"
+}
+
+# 2. Assign ONLY the permissions it needs (e.g., GCS access)
+resource "google_project_iam_member" "gcs_access" {
+  project = "vocal-tracer-484119-t7"
+  role    = "roles/storage.objectCreator"
+  member  = "serviceAccount:${google_service_account.scraper_sa.email}"
+}
+
+resource "google_service_account_iam_member" "allow_me_to_act_as_scraper" {
+  service_account_id = google_service_account.scraper_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "user:santiago.villaverde07@gmail.com"
+}
+
+resource "google_cloud_run_v2_job" "scrapy-job" {
+  name     = "discount-tracker-scrapy-job"
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.scraper_sa.email
+      containers {
+        image = "docker.io/vsantos77/discount-tracker-scrapy:v1.1"
+      
+        command = ["scrapy"]
+        args    = ["crawl", "bbva", "-s", "CLOSESPIDER_ITEMCOUNT=1"]
+        
+        resources {
+          limits = {
+            cpu    = "1"
+            memory = "512Mi"
+          }
+        }
+
+        env {
+          name  = "GCP_PROJECT_ID"
+          value = var.gcp_project_id
+        }
+        env {
+          name  = "GCS_BUCKET"
+          value = google_storage_bucket.data_lake.name
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+      }
+      max_retries = 0
+    }
+  }
+}
+
+# 1. Dedicated Service Account for dbt
+resource "google_service_account" "dbt_sa" {
+  account_id   = "discount-tracker-dbt-runner"
+  display_name = "dbt BigQuery Runner"
+}
+
+# 2. Assign BigQuery Permissions (Least Privilege)
+# Role to run jobs (queries)
+resource "google_project_iam_member" "bq_job_user" {
+  project = "vocal-tracer-484119-t7"
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.dbt_sa.email}"
+}
+
+# Role to edit data in your specific datasets
+resource "google_project_iam_member" "bq_data_editor" {
+  project = "vocal-tracer-484119-t7"
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.dbt_sa.email}"
+}
+
+resource "google_service_account_iam_member" "allow_me_to_act_as_dbt" {
+  service_account_id = google_service_account.dbt_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "user:santiago.villaverde07@gmail.com"
+}
+
+resource "google_cloud_run_v2_job" "dbt-job" {
+  name     = "discount-tracker-dbt-job"
+  location = var.region
+  template {
+    template {
+      service_account = google_service_account.dbt_sa.email
+      containers {
+        image = "docker.io/vsantos77/discount-tracker-dbt:v1.2"
+
+        command = ["dbt"]
+        args    = ["build", "--select", "stg_galicia", "--target","cloud-run-prod"]
+        resources {
+          limits = {
+            cpu    = "1"
+            memory = "512Mi"
+          }
+        }
+
+        env {
+          name  = "GCP_PROJECT_ID"
+          value = var.gcp_project_id
+        }
+        env {
+          name  = "GCP_REGION"
+          value = var.region
+        }
+      }
+      max_retries = 0
     }
   }
 }
