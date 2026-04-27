@@ -10,10 +10,9 @@ import datetime as _dt
 import os
 
 GCS_BUCKET = os.getenv('GCS_BUCKET', '')
-_today = _dt.datetime.utcnow().strftime('%Y-%m-%d')
+_today = _dt.datetime.now(_dt.timezone.utc).strftime('%Y-%m-%d')
 GCS_PROJECT_ID = os.getenv('GCP_PROJECT_ID', '')
 STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local')
-
 
 BOT_NAME = "discount_tracker_scrapy"
 

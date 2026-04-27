@@ -1,6 +1,5 @@
 streamlit
 google-cloud-bigquery
-google-cloud-storage
 pandas
 plotly
 db-dtypes

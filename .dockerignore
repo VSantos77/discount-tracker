@@ -1,8 +1,9 @@
 .venv
 .git
-__pycache__
+**/__pycache__
 *.pyc
 output/
 .env
-logs
-dbt_packages/
+discount_tracker_dbt/logs/
+discount_tracker_dbt/dbt_packages/
+discount_tracker_dbt/target/
