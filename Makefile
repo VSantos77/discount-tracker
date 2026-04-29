@@ -43,3 +43,10 @@ prefect-run:
 # Open a shell in the orchestrator container (useful for ad-hoc prefect CLI commands)
 prefect-shell:
 	docker exec -it discount_orchestrator bash
+
+
+test-dbt-image:
+	docker run --rm -v $(GOOGLE_APPLICATION_CREDENTIALS):/app/key.json -e GCP_PROJECT_ID -e GOOGLE_APPLICATION_CREDENTIALS=/app/key.json vsantos77/discount-tracker-dbt:v1.1 build --select stg_galicia --target=prod
+
+test-scrapy-image:
+	docker run --rm -v $(GOOGLE_APPLICATION_CREDENTIALS):/app/key.json -e GCS_BUCKET -e GCP_PROJECT_ID -e GOOGLE_APPLICATION_CREDENTIALS=/app/key.json -e STORAGE_BACKEND=gcs vsantos77/discount-tracker-scrapy:v1.1 crawl galicia -s CLOSESPIDER_ITEMCOUNT=1

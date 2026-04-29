@@ -33,6 +33,7 @@ COPY --from=scrapy-builder /app/.venv /app/.venv
 # Copy scrapy code only
 COPY discount_tracker_scrapy/ ./discount_tracker_scrapy/
 COPY scrapy.cfg .
+WORKDIR ./discount_tracker_scrapy/
 ENTRYPOINT ["scrapy"]
 
 # ---------------------------------------------------------
@@ -43,4 +44,6 @@ FROM base AS dbt
 COPY --from=dbt-builder /app/.venv /app/.venv
 # Copy dbt code only
 COPY discount_tracker_dbt/ ./discount_tracker_dbt/
+WORKDIR ./discount_tracker_dbt/
+RUN dbt deps
 ENTRYPOINT ["dbt"]

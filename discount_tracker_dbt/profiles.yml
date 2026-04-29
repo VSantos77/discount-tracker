@@ -1,6 +1,16 @@
 discount-tracker-bq:
-  target: dev
+  target: cloud-run-prod
   outputs:
+    cloud-run-prod:
+      type: bigquery
+      method: oauth
+      # Use the absolute path to the same key you used for Terraform/Scrapy
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: prod # This is where dbt will CREATE your new tables
+      threads: 4
+      timeout_seconds: 300
+      location: "{{ env_var('GCP_REGION') }}" # Must match your GCS bucket/BigQuery dataset location
+      priority: interactive
     prod:
       type: bigquery
       method: service-account

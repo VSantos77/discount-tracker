@@ -535,6 +535,7 @@ dbt = [
     { name = "dbt-bigquery" },
 ]
 scrapy = [
+    { name = "google-cloud-storage" },
     { name = "scrapy" },
 ]
 
@@ -547,7 +548,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dbt = [{ name = "dbt-bigquery", specifier = ">=1.11.1" }]
-scrapy = [{ name = "scrapy", specifier = ">=2.14.1" }]
+scrapy = [
+    { name = "google-cloud-storage", specifier = ">=3.1.1" },
+    { name = "scrapy", specifier = ">=2.14.1" },
+]
 
 [[package]]
 name = "distro"
