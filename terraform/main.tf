@@ -71,28 +71,19 @@ resource "google_bigquery_table" "raw_discounts" {
   table_id   = "raw_discounts"
   deletion_protection = false
 
-  # Schema: single JSON column wrapping the full spider item.
-  # Partition virtual columns (spider, date) are injected by hive partitioning.
-  schema = jsonencode([
-    {
-      name = "raw_payload"
-      type = "JSON"
-      mode = "NULLABLE"
-    }
-  ])
-
   external_data_configuration {
     autodetect    = false
     source_format = "NEWLINE_DELIMITED_JSON"
     source_uris   = ["gs://${google_storage_bucket.data_lake.name}/landing/*"]
 
     hive_partitioning_options {
-      mode = "CUSTOM"
+      mode = "AUTO"
       # landing/{spider:STRING}/{scraped_at_dt:DATE}/{timestamp}.jsonl
-      source_uri_prefix = "gs://${google_storage_bucket.data_lake.name}/landing/{spider:STRING}/{scraped_at_dt:DATE}"
+      source_uri_prefix = "gs://${google_storage_bucket.data_lake.name}/landing"
       require_partition_filter = true
     }
   }
+
 }
 
 # 1. Create a dedicated SA for the Scraper
@@ -106,6 +97,12 @@ resource "google_project_iam_member" "gcs_access" {
   project = "vocal-tracer-484119-t7"
   role    = "roles/storage.objectCreator"
   member  = "serviceAccount:${google_service_account.scraper_sa.email}"
+}
+
+resource "google_storage_bucket_iam_member" "gcs_bucket_reader" {
+  bucket = google_storage_bucket.data_lake.name
+  role   = "roles/storage.legacyBucketReader"
+  member = "serviceAccount:${google_service_account.scraper_sa.email}"
 }
 
 resource "google_service_account_iam_member" "allow_me_to_act_as_scraper" {
@@ -122,7 +119,7 @@ resource "google_cloud_run_v2_job" "scrapy-job" {
     template {
       service_account = google_service_account.scraper_sa.email
       containers {
-        image = "docker.io/vsantos77/discount-tracker-scrapy:v1.1"
+        image = "docker.io/vsantos77/discount-tracker-scrapy:v1.2"
       
         command = ["scrapy"]
         args    = ["crawl", "bbva", "-s", "CLOSESPIDER_ITEMCOUNT=1"]
@@ -179,6 +176,13 @@ resource "google_service_account_iam_member" "allow_me_to_act_as_dbt" {
   member             = "user:santiago.villaverde07@gmail.com"
 }
 
+# Allow dbt SA to read GCS objects for the raw_discounts external table
+resource "google_storage_bucket_iam_member" "dbt_gcs_object_viewer" {
+  bucket = google_storage_bucket.data_lake.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.dbt_sa.email}"
+}
+
 resource "google_cloud_run_v2_job" "dbt-job" {
   name     = "discount-tracker-dbt-job"
   location = var.region
@@ -209,4 +213,64 @@ resource "google_cloud_run_v2_job" "dbt-job" {
       max_retries = 0
     }
   }
+}
+
+# WORKFLOW 
+
+resource "google_project_service" "default" {
+  service            = "workflows.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Create a dedicated service account
+resource "google_service_account" "discount-tracker-workflows-sa" {
+  account_id   = "discount-tracker-workflows-sa"
+  display_name = "Discount Tracker Workflows Service Account"
+}
+
+# Allow workflows SA to trigger and monitor Cloud Run jobs
+resource "google_project_iam_member" "workflows_run_developer" {
+  project = "vocal-tracer-484119-t7"
+  role    = "roles/run.developer"
+  member  = "serviceAccount:${google_service_account.discount-tracker-workflows-sa.email}"
+}
+
+# Allow workflows SA to query Cloud Logging (for scrapy item counts)
+resource "google_project_iam_member" "workflows_logging_viewer" {
+  project = "vocal-tracer-484119-t7"
+  role    = "roles/logging.viewer"
+  member  = "serviceAccount:${google_service_account.discount-tracker-workflows-sa.email}"
+}
+
+# Allow workflows SA to write logs via sys.log
+resource "google_project_iam_member" "workflows_logging_writer" {
+  project = "vocal-tracer-484119-t7"
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.discount-tracker-workflows-sa.email}"
+}
+
+# Allow workflows SA to list GCS objects (for landing zone check)
+resource "google_project_iam_member" "workflows_storage_viewer" {
+  project = "vocal-tracer-484119-t7"
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${google_service_account.discount-tracker-workflows-sa.email}"
+}
+
+# Create a workflow
+resource "google_workflows_workflow" "discount-tracker-prod-workflow" {
+  name            = "discount-tracker-prod-workflow"
+  region          = var.region
+  description     = "Prod discount tracker workflow"
+  service_account = google_service_account.discount-tracker-workflows-sa.id
+
+  # labels = {
+  #   env = "test"
+  # }
+  # user_env_vars = {
+  #   url = "https://timeapi.io/api/Time/current/zone?timeZone=Europe/Amsterdam"
+  # }
+
+  source_contents = file("${path.module}/workflow.yaml") # points to workflow.yaml within terraform dir
+
+  depends_on = [google_project_service.default]
 }

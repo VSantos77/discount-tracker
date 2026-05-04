@@ -1,0 +1,238 @@
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - project_id: "vocal-tracer-484119-t7"
+          - region: "us-east1"
+          - bucket: "vocal-tracer-484119-t7-discount-lake"
+          - scrapy_job: "discount-tracker-scrapy-job"
+          - dbt_job: "discount-tracker-dbt-job"
+          - spiders: ["galicia", "bbva"]
+          - workflow_start_time: ${sys.now()}
+          - spider_results: {}
+          - close_spider_itemcount: ${default(map.get(args, "close_spider_itemcount"), 0)}
+          - dbt_custom_cmd: ${default(map.get(args, "dbt_custom_cmd"), "build --target cloud-run-prod")}
+
+    - run_spiders_in_parallel:
+        parallel:
+          shared: [spider_results]
+          for:
+            value: spider
+            in: ${spiders}
+            steps:
+              - call_run_spider:
+                  call: run_spider
+                  args:
+                    spider: ${spider}
+                    project_id: ${project_id}
+                    region: ${region}
+                    scrapy_job: ${scrapy_job}
+                    close_spider_itemcount: ${close_spider_itemcount}
+                  result: spider_result
+              - store_result:
+                  assign:
+                    - spider_results[spider]: ${spider_result}
+              - log_result:
+                  call: sys.log
+                  args:
+                    json:
+                      spider: ${spider}
+                      items_scraped: ${spider_result.items_scraped}
+                    severity: INFO
+
+    - check_gcs:
+        call: check_new_gcs_files
+        args:
+          bucket: ${bucket}
+          workflow_start_time: ${workflow_start_time}
+        result: new_files_count
+
+    - run_dbt:
+        call: run_and_wait_job
+        args:
+          project_id: ${project_id}
+          region: ${region}
+          job_name: ${dbt_job}
+          job_args: ${text.split(dbt_custom_cmd, " ")}
+        result: dbt_exec_name
+
+    - return_summary:
+        return:
+          spider_results: ${spider_results}
+          new_gcs_files: ${new_files_count}
+          dbt_execution: ${dbt_exec_name}
+
+# Runs a single spider and returns its item count from Cloud Logging
+run_spider:
+  params: [spider, project_id, region, scrapy_job, close_spider_itemcount]
+  steps:
+    - build_job_args:
+        assign:
+          - job_args: ${if(close_spider_itemcount > 0, ["crawl", spider, "-s", "CLOSESPIDER_ITEMCOUNT=" + string(close_spider_itemcount)], ["crawl", spider])}
+    - trigger_job:
+        call: run_and_wait_job
+        args:
+          project_id: ${project_id}
+          region: ${region}
+          job_name: ${scrapy_job}
+          job_args: ${job_args}
+        result: exec_name
+
+    - wait_for_logs:
+        call: sys.sleep
+        args:
+          seconds: 5
+
+    - query_logs:
+        call: http.post
+        args:
+          url: "https://logging.googleapis.com/v2/entries:list"
+          auth:
+            type: OAuth2
+          body:
+            resourceNames:
+              - ${"projects/" + project_id}
+            filter: ${"resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"" + scrapy_job + "\" AND labels.\"run.googleapis.com/execution_name\"=\"" + exec_name + "\" AND textPayload:\"WORKFLOW_STATS\""}
+            orderBy: "timestamp desc"
+            pageSize: 1
+        result: log_response
+
+    - check_log_entries:
+        switch:
+          - condition: ${"entries" in log_response.body and len(log_response.body.entries) > 0}
+            next: extract_count
+          - condition: true
+            next: return_zero_items
+
+    - return_zero_items:
+        return:
+          spider: ${spider}
+          items_scraped: 0
+
+    - extract_count:
+        assign:
+          - log_text: ${log_response.body.entries[0].textPayload}
+
+    - check_key_present:
+        switch:
+          - condition: ${text.match_regex(log_text, ".*WORKFLOW_STATS.*")}
+            next: parse_number
+          - condition: true
+            next: return_zero_no_match
+
+    - return_zero_no_match:
+        return:
+          spider: ${spider}
+          items_scraped: 0
+
+    - parse_number:
+        assign:
+          - items_scraped: ${int(text.split(log_text, "items_scraped:")[1])}
+
+    - return_result:
+        return:
+          spider: ${spider}
+          items_scraped: ${items_scraped}
+
+# Triggers a Cloud Run job and polls the LRO until completion; returns execution name
+run_and_wait_job:
+  params: [project_id, region, job_name, job_args]
+  steps:
+    - trigger:
+        call: http.post
+        args:
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/" + job_name + ":run"}
+          auth:
+            type: OAuth2
+          body:
+            overrides:
+              containerOverrides:
+                - args: ${job_args}
+        result: run_response
+
+    - init_poll:
+        assign:
+          - operation_name: ${run_response.body.name}
+
+    - poll:
+        call: http.get
+        args:
+          url: ${"https://run.googleapis.com/v2/" + operation_name}
+          auth:
+            type: OAuth2
+        result: op_status
+
+    - check_done:
+        switch:
+          - condition: ${"done" in op_status.body and op_status.body.done == true}
+            next: verify_success
+          - condition: true
+            next: wait_and_retry
+
+    - wait_and_retry:
+        call: sys.sleep
+        args:
+          seconds: 10
+        next: poll
+
+    - verify_success:
+        switch:
+          - condition: ${"error" in op_status.body}
+            raise: '${"Job " + job_name + " failed: " + op_status.body.error.message}'
+
+    - extract_execution_name:
+        assign:
+          - exec_parts: ${text.split(op_status.body.response.name, "/")}
+          - exec_name: ${exec_parts[len(exec_parts) - 1]}
+
+    - return_exec_name:
+        return: ${exec_name}
+
+# Lists GCS landing objects and verifies at least one was created after workflow_start_time
+check_new_gcs_files:
+  params: [bucket, workflow_start_time]
+  steps:
+    - list_objects:
+        call: http.get
+        args:
+          url: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o"}
+          auth:
+            type: OAuth2
+          query:
+            prefix: "landing/"
+        result: gcs_response
+
+    - check_items_exist:
+        switch:
+          - condition: ${"items" in gcs_response.body and len(gcs_response.body.items) > 0}
+            next: count_new_files
+          - condition: true
+            raise: "No files found in GCS landing zone. Aborting dbt run."
+
+    - count_new_files:
+        assign:
+          - new_count: 0
+
+    - count_loop:
+        for:
+          value: obj
+          in: ${gcs_response.body.items}
+          steps:
+            - check_obj_time:
+                switch:
+                  - condition: ${time.parse(obj.timeCreated) >= workflow_start_time}
+                    next: do_increment
+                  - condition: true
+                    next: continue
+            - do_increment:
+                assign:
+                  - new_count: ${new_count + 1}
+
+    - verify_new_count:
+        switch:
+          - condition: ${new_count == 0}
+            raise: "No new files added to GCS landing zone since workflow started. Aborting dbt run."
+
+    - return_count:
+        return: ${new_count}

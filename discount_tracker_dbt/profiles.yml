@@ -13,9 +13,8 @@ discount-tracker-bq:
       priority: interactive
     prod:
       type: bigquery
-      method: service-account
+      method: oauth
       # Use the absolute path to the same key you used for Terraform/Scrapy
-      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
       project: "{{ env_var('GCP_PROJECT_ID') }}"
       dataset: prod # This is where dbt will CREATE your new tables
       threads: 4
