@@ -274,3 +274,45 @@ resource "google_workflows_workflow" "discount-tracker-prod-workflow" {
 
   depends_on = [google_project_service.default]
 }
+
+# Enable Cloud Scheduler API
+resource "google_project_service" "scheduler" {
+  service            = "cloudscheduler.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Allow workflows SA to trigger itself (needed by Cloud Scheduler)
+resource "google_project_iam_member" "workflows_invoker" {
+  project = "vocal-tracer-484119-t7"
+  role    = "roles/workflows.invoker"
+  member  = "serviceAccount:${google_service_account.discount-tracker-workflows-sa.email}"
+}
+
+# Daily schedule: 9 PM GMT-3 = 00:00 UTC
+resource "google_cloud_scheduler_job" "daily_workflow" {
+  name             = "discount-tracker-daily"
+  description      = "Triggers the discount tracker workflow daily at 9 PM GMT-3"
+  schedule         = "0 0 * * *"
+  time_zone        = "UTC"
+  region           = var.region
+  attempt_deadline = "1800s"
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://workflowexecutions.googleapis.com/v1/projects/vocal-tracer-484119-t7/locations/${var.region}/workflows/discount-tracker-prod-workflow/executions"
+    body        = base64encode(jsonencode({
+      argument = jsonencode({
+        close_spider_itemcount = 1
+        dbt_custom_cmd         = "build --target cloud-run-prod --select stg_bbva+ stg_galicia+"
+      })
+    }))
+    headers = {
+      "Content-Type" = "application/json"
+    }
+    oauth_token {
+      service_account_email = google_service_account.discount-tracker-workflows-sa.email
+    }
+  }
+
+  depends_on = [google_project_service.scheduler]
+}
