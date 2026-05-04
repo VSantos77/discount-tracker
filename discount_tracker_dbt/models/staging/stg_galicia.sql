@@ -6,19 +6,6 @@ with source as (
     from {{ source('staging', 'raw_discounts') }}
     where spider = 'galicia'
 
-),
-
-deduped as (
-
-    select
-        raw_payload,
-        scraped_at_dt,
-        row_number() over (
-            partition by JSON_VALUE(raw_payload, '$.source_id')
-            order by scraped_at_dt desc
-        ) as rn
-    from source
-
 )
 
 select
@@ -90,5 +77,4 @@ select
     raw_payload                                                                 as discount_metadata,
     scraped_at_dt
 
-from deduped
-where rn = 1
+from source

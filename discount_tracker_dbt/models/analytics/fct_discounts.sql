@@ -1,6 +1,24 @@
 {{ config(
     materialized='incremental',
-    unique_key='discount_id'
+    unique_key='discount_id',
+    incremental_strategy='merge',
+    merge_update_columns=[
+        'discount_start_date',
+        'discount_end_date',
+        'discount_rate',
+        'discount_no_interest_installment_qty',
+        'discount_name',
+        'discount_description',
+        'discount_url',
+        'discount_terms_and_conditions',
+        'discount_max_discount_amount',
+        'discount_min_purchase_amount',
+        'discount_valid_days_list',
+        'discount_valid_online',
+        'discount_valid_instore',
+        'discount_metadata',
+        'scraped_at_dt'
+    ]
 )}}
 
 with discounts_source as (
@@ -54,5 +72,5 @@ left join merchants m on d.merchant_name = m.merchant_name
     and d.merchant_category_name = m.merchant_category_name
 
 {% if is_incremental() %}
-    where d.discount_id not in (select discount_id from {{ this }})
+    where d.scraped_at_dt > (select max(scraped_at_dt) from {{ this }})
 {% endif %}

@@ -11,24 +11,13 @@ discount-tracker-bq:
       timeout_seconds: 300
       location: "{{ env_var('GCP_REGION') }}" # Must match your GCS bucket/BigQuery dataset location
       priority: interactive
-    prod:
+    local-dev:
       type: bigquery
       method: oauth
       # Use the absolute path to the same key you used for Terraform/Scrapy
       project: "{{ env_var('GCP_PROJECT_ID') }}"
-      dataset: prod # This is where dbt will CREATE your new tables
+      dataset: dev # This is where dbt will CREATE your new tables
       threads: 4
       timeout_seconds: 300
-      location: us-east1 # Must match your GCS bucket/BigQuery dataset location
-      priority: interactive
-    dev_local:
-      type: bigquery
-      method: service-account
-      # Use the absolute path to the same key you used for Terraform/Scrapy
-      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
-      project: "{{ env_var('GCP_PROJECT_ID') }}"
-      dataset: prod # This is where dbt will CREATE your new tables
-      threads: 4
-      timeout_seconds: 300
-      location: us-east1 # Must match your GCS bucket/BigQuery dataset location
+      location: "{{ env_var('GCP_REGION') }}" # Must match your GCS bucket/BigQuery dataset location
       priority: interactive
