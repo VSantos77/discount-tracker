@@ -118,9 +118,10 @@ resource "google_cloud_run_v2_job" "scrapy-job" {
   template {
     template {
       service_account = google_service_account.scraper_sa.email
+      timeout = "1800s" # 30 minutes, adjust as needed
       containers {
         image = "docker.io/vsantos77/discount-tracker-scrapy:v1.2"
-      
+        
         command = ["scrapy"]
         args    = ["crawl", "bbva", "-s", "CLOSESPIDER_ITEMCOUNT=1"]
         

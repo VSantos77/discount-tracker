@@ -8,7 +8,7 @@ main:
           - bucket: "vocal-tracer-484119-t7-discount-lake"
           - scrapy_job: "discount-tracker-scrapy-job"
           - dbt_job: "discount-tracker-dbt-job"
-          - spiders: ["galicia", "bbva"]
+          - spiders: ${default(map.get(args, "spiders"), ["galicia", "bbva"])}
           - workflow_start_time: ${sys.now()}
           - spider_results: {}
           - close_spider_itemcount: ${default(map.get(args, "close_spider_itemcount"), 0)}
