@@ -56,31 +56,31 @@ select
     null::integer                                                           as discount_no_interest_installment_qty,
     -- titulo_fecha → day index array (0=Mon … 6=Sun); null for unrecognised patterns
     case lower(trim(raw_payload->'Entity'->'Beneficio'->>'titulo_fecha'))
-        when 'lunes'                 then '[0]'::jsonb
-        when 'martes'                then '[1]'::jsonb
-        when 'miércoles'             then '[2]'::jsonb
-        when 'miercoles'             then '[2]'::jsonb
-        when 'jueves'                then '[3]'::jsonb
-        when 'viernes'               then '[4]'::jsonb
-        when 'sábado'                then '[5]'::jsonb
-        when 'sabado'                then '[5]'::jsonb
-        when 'sábados'               then '[5]'::jsonb
-        when 'sabados'               then '[5]'::jsonb
-        when 'domingo'               then '[6]'::jsonb
-        when 'lunes y martes'        then '[0,1]'::jsonb
-        when 'martes y miércoles'    then '[1,2]'::jsonb
-        when 'martes y miercoles'    then '[1,2]'::jsonb
-        when 'miércoles y jueves'    then '[2,3]'::jsonb
-        when 'miercoles y jueves'    then '[2,3]'::jsonb
-        when 'sábados y domingos'    then '[5,6]'::jsonb
-        when 'sabados y domingos'    then '[5,6]'::jsonb
-        when 'fines de semana'       then '[5,6]'::jsonb
-        when 'de lunes a jueves'     then '[0,1,2,3]'::jsonb
-        when 'lunes a viernes'       then '[0,1,2,3,4]'::jsonb
-        when 'lunes a sábado'        then '[0,1,2,3,4,5]'::jsonb
-        when 'lunes a sabado'        then '[0,1,2,3,4,5]'::jsonb
-        when 'todos los días'        then '[0,1,2,3,4,5,6]'::jsonb
-        when 'todos los dias'        then '[0,1,2,3,4,5,6]'::jsonb
+        when 'lunes'                 then ARRAY[0]
+        when 'martes'                then ARRAY[1]
+        when 'miércoles'             then ARRAY[2]
+        when 'miercoles'             then ARRAY[2]
+        when 'jueves'                then ARRAY[3]
+        when 'viernes'               then ARRAY[4]
+        when 'sábado'                then ARRAY[5]
+        when 'sabado'                then ARRAY[5]
+        when 'sábados'               then ARRAY[5]
+        when 'sabados'               then ARRAY[5]
+        when 'domingo'               then ARRAY[6]
+        when 'lunes y martes'        then ARRAY[0,1]
+        when 'martes y miércoles'    then ARRAY[1,2]
+        when 'martes y miercoles'    then ARRAY[1,2]
+        when 'miércoles y jueves'    then ARRAY[2,3]
+        when 'miercoles y jueves'    then ARRAY[2,3]
+        when 'sábados y domingos'    then ARRAY[5,6]
+        when 'sabados y domingos'    then ARRAY[5,6]
+        when 'fines de semana'       then ARRAY[5,6]
+        when 'de lunes a jueves'     then ARRAY[0,1,2,3]
+        when 'lunes a viernes'       then ARRAY[0,1,2,3,4]
+        when 'lunes a sábado'        then ARRAY[0,1,2,3,4,5]
+        when 'lunes a sabado'        then ARRAY[0,1,2,3,4,5]
+        when 'todos los días'        then ARRAY[0,1,2,3,4,5,6]
+        when 'todos los dias'        then ARRAY[0,1,2,3,4,5,6]
         else null
     end                                                                     as discount_valid_days_list,
     false                                                                   as discount_valid_online,

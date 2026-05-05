@@ -112,7 +112,7 @@ select
     -- Valid days: days_of_week is a string of single-char codes L M X J V S D (Mon-Sun)
     -- Convert to 0-based integer array [0..6]
     (
-        select jsonb_agg(day_num order by day_num)
+        select array_agg(day_num order by day_num)
         from (values
             ('L', 0), ('M', 1), ('X', 2), ('J', 3), ('V', 4), ('S', 5), ('D', 6)
         ) as t(letter, day_num)

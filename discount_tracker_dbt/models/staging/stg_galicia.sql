@@ -48,22 +48,20 @@ select
     SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.cuotaSinInteresHasta')), '') AS INT64) as discount_no_interest_installment_qty,
 
     -- diasAplicacion: semicolon-separated day abbreviations e.g. "Lu;Ma;Mi"
-    -- Convert to a JSON array of 0-based weekday integers
-    TO_JSON_STRING(
-        ARRAY(
-            select
-                case day
-                    when 'Lu' then 0
-                    when 'Ma' then 1
-                    when 'Mi' then 2
-                    when 'Ju' then 3
-                    when 'Vi' then 4
-                    when 'Sa' then 5
-                    when 'Do' then 6
-                end
-            from UNNEST(SPLIT(COALESCE(JSON_VALUE(raw_payload, '$.diasAplicacion'), ''), ';')) as day
-            where day in ('Lu','Ma','Mi','Ju','Vi','Sa','Do')
-        )
+    -- Convert to a 0-based integer array
+    ARRAY(
+        select
+            case day
+                when 'Lu' then 0
+                when 'Ma' then 1
+                when 'Mi' then 2
+                when 'Ju' then 3
+                when 'Vi' then 4
+                when 'Sa' then 5
+                when 'Do' then 6
+            end
+        from UNNEST(SPLIT(COALESCE(JSON_VALUE(raw_payload, '$.diasAplicacion'), ''), ';')) as day
+        where day in ('Lu','Ma','Mi','Ju','Vi','Sa','Do')
     )                                                                           as discount_valid_days_list,
 
     SAFE_CAST(JSON_VALUE(raw_payload, '$.tiendaOnline') AS BOOL)                as discount_valid_online,

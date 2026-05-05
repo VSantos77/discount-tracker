@@ -87,13 +87,13 @@ select
     end                                                              as discount_no_interest_installment_qty,
 
     -- Valid days: diasPromo is a 7-element comma-separated string of 0/1 flags (Mon-Sun)
-    -- Convert to a JSON array string of 0-based weekday integers where flag = '1'
+    -- Convert to a 0-based integer array where flag = '1'
     -- If diasPromo is null, treat as valid all days (0-6)
     case
         when JSON_VALUE(raw_payload, '$.diasPromo') is null
-        then '[0,1,2,3,4,5,6]'
-        else (
-            select CONCAT('[', IFNULL(STRING_AGG(CAST(offset AS STRING), ',' ORDER BY offset), ''), ']')
+        then [0,1,2,3,4,5,6]
+        else ARRAY(
+            select CAST(offset AS INT64)
             from UNNEST(SPLIT(JSON_VALUE(raw_payload, '$.diasPromo'), ',')) AS flag WITH OFFSET AS offset
             where flag = '1'
         )

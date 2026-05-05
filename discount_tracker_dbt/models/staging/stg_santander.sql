@@ -135,7 +135,7 @@ select
         else null
     end                                                         as discount_no_interest_installment_qty,
 
-    null::jsonb                                                 as discount_valid_days_list,
+    null::integer[]                                             as discount_valid_days_list,
 
     case
         when lower(coalesce(payload->>'online', payload->>'isOnline', '')) in ('true', 't', '1', 'si', 'yes')

@@ -79,40 +79,40 @@ select
     (raw_payload->>'installments')::integer                                 as discount_no_interest_installment_qty,
     -- date_text → valid days; null for unrecognised patterns
     case lower(trim(raw_payload->>'date_text'))
-        when 'todos los días'              then '[0,1,2,3,4,5,6]'::jsonb
-        when 'todos los dias'              then '[0,1,2,3,4,5,6]'::jsonb
-        when 'lunes a viernes'             then '[0,1,2,3,4]'::jsonb
-        when 'fines de semana'             then '[5,6]'::jsonb
+           when 'todos los días'              then ARRAY[0,1,2,3,4,5,6]
+           when 'todos los dias'              then ARRAY[0,1,2,3,4,5,6]
+           when 'lunes a viernes'             then ARRAY[0,1,2,3,4]
+           when 'fines de semana'             then ARRAY[5,6]
         else
             -- single named day anywhere in the text
             case
                 when lower(raw_payload->>'date_text') like '%lunes%'     and
                      lower(raw_payload->>'date_text') not like '%martes%' and
                      lower(raw_payload->>'date_text') not like '%viernes%'
-                then '[0]'::jsonb
+                 then ARRAY[0]
                 when lower(raw_payload->>'date_text') like '%martes%'    and
                      lower(raw_payload->>'date_text') not like '%miércoles%' and
                      lower(raw_payload->>'date_text') not like '%miercoles%'
-                then '[1]'::jsonb
+                 then ARRAY[1]
                 when (lower(raw_payload->>'date_text') like '%miércoles%' or
                       lower(raw_payload->>'date_text') like '%miercoles%') and
                      lower(raw_payload->>'date_text') not like '%jueves%'
-                then '[2]'::jsonb
+                 then ARRAY[2]
                 when lower(raw_payload->>'date_text') like '%jueves%'    and
                      lower(raw_payload->>'date_text') not like '%viernes%'
-                then '[3]'::jsonb
+                 then ARRAY[3]
                 when lower(raw_payload->>'date_text') like '%viernes%'   and
                      lower(raw_payload->>'date_text') not like '%sábado%' and
                      lower(raw_payload->>'date_text') not like '%sabado%'
-                then '[4]'::jsonb
+                 then ARRAY[4]
                 when (lower(raw_payload->>'date_text') like '%sábado%' or
                       lower(raw_payload->>'date_text') like '%sabado%')  and
                      lower(raw_payload->>'date_text') not like '%domingo%'
-                then '[5]'::jsonb
+                 then ARRAY[5]
                 when lower(raw_payload->>'date_text') like '%domingo%'   and
                      lower(raw_payload->>'date_text') not like '%sábado%' and
                      lower(raw_payload->>'date_text') not like '%sabado%'
-                then '[6]'::jsonb
+                 then ARRAY[6]
                 -- date range (not a day name) → null, let downstream filter
                 else null
             end
