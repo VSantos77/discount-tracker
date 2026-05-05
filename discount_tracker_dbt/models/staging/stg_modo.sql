@@ -123,13 +123,6 @@ select
     raw_payload->>'payment_flow' like '%online%'                as discount_valid_online,
     raw_payload->>'payment_flow' like '%instore%'               as discount_valid_instore,
 
-    -- Payment method: bank name from row[5]; no card-level detail in listing payload
-    jsonb_build_object(
-        'bank',      trim(raw_payload->'content'->'row'->5->>'text'),
-        'card',      null,
-        'card_type', null
-    )                                                           as discount_payment_method,
-
     raw_payload                                                 as discount_metadata,
     scraped_at
 

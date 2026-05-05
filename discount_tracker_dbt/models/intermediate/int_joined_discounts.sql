@@ -40,7 +40,6 @@ combined as (
         discount_valid_days_list,
         discount_valid_online,
         discount_valid_instore,
-        discount_payment_method,
         discount_metadata,
         scraped_at_dt
     from unioned

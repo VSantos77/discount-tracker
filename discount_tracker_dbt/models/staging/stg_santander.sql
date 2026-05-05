@@ -160,11 +160,6 @@ select
         )
     end                                                         as discount_valid_instore,
 
-    jsonb_build_object(
-        'card',      coalesce(payload->'card'->>'name', payload->>'cardName', null),
-        'card_type', coalesce(payload->'cardType'->>'name', payload->>'cardType', null)
-    )                                                           as discount_payment_method,
-
     raw_payload                                                 as discount_metadata,
     scraped_at
 

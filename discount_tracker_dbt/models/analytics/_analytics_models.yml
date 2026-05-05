@@ -49,10 +49,3 @@ models:
         data_tests:
           - not_null
           - unique
-  - name: dim_payment_methods
-    description: "Dimension table for payment methods, containing information about the payment methods used for discounts"
-    columns:
-      - name: payment_method_id
-        data_tests:
-          - not_null
-          - unique

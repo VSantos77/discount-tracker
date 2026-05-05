@@ -85,10 +85,6 @@ select
     end                                                                     as discount_valid_days_list,
     false                                                                   as discount_valid_online,
     true                                                                    as discount_valid_instore,
-    jsonb_build_object(
-        'card',      'Cuenta DNI',
-        'card_type', 'digital_wallet'
-    )                                                                       as discount_payment_method,
     raw_payload                                                             as discount_metadata,
     scraped_at
 from deduped

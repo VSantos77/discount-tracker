@@ -69,11 +69,6 @@ select
     SAFE_CAST(JSON_VALUE(raw_payload, '$.tiendaOnline') AS BOOL)                as discount_valid_online,
     SAFE_CAST(JSON_VALUE(raw_payload, '$.tiendaFisica') AS BOOL)                as discount_valid_instore,
 
-    JSON_OBJECT(
-        'card',      JSON_VALUE(raw_payload, '$.mediosDePago.tarjeta'),
-        'card_type', JSON_VALUE(raw_payload, '$.mediosDePago.tipoTarjeta')
-    )                                                                           as discount_payment_method,
-
     raw_payload                                                                 as discount_metadata,
     scraped_at_dt
 

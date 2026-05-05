@@ -103,9 +103,6 @@ select
     ARRAY_LENGTH(JSON_QUERY_ARRAY(raw_payload, '$.canalesVenta.web')) > 0        as discount_valid_online,
     ARRAY_LENGTH(JSON_QUERY_ARRAY(raw_payload, '$.canalesVenta.sucursales')) > 0 as discount_valid_instore,
 
-    -- BBVA always credit; grupoTarjeta does not expose card-level detail
-    PARSE_JSON('{"card": "all", "card_type": "credito"}')           as discount_payment_method,
-
     raw_payload                                                      as discount_metadata,
     scraped_at_dt
 
