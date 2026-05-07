@@ -303,8 +303,7 @@ resource "google_cloud_scheduler_job" "daily_workflow" {
     uri         = "https://workflowexecutions.googleapis.com/v1/projects/vocal-tracer-484119-t7/locations/${var.region}/workflows/discount-tracker-prod-workflow/executions"
     body        = base64encode(jsonencode({
       argument = jsonencode({
-        close_spider_itemcount = 1
-        dbt_custom_cmd         = "build --target cloud-run-prod --select stg_bbva+ stg_galicia+"
+        dbt_custom_cmd         = "build --target cloud-run-prod"
       })
     }))
     headers = {
