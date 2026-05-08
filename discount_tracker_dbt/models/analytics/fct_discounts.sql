@@ -24,7 +24,7 @@
 with discounts_source as (
     select
         *
-    from {{ ref('int_joined_discounts') }}
+    from {{ ref('int_clean_categories') }}
 ),
 
 discounts as (

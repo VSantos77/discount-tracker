@@ -21,3 +21,6 @@ models:
         analytics:
             +materialized: table
             +dataset: dbt_analytics
+seeds:
+    discount_tracker_dbt:
+        +dataset: dbt_seeds
