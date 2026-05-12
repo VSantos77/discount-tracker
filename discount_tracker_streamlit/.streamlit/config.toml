@@ -4,3 +4,6 @@ backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F0F7F4"
 textColor = "#1A202C"
 font = "Roboto"
+
+[client]
+showErrorDetails = false
