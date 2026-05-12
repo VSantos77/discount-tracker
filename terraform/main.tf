@@ -289,11 +289,11 @@ resource "google_project_iam_member" "workflows_invoker" {
   member  = "serviceAccount:${google_service_account.discount-tracker-workflows-sa.email}"
 }
 
-# Daily schedule: 9 PM GMT-3 = 00:00 UTC
-resource "google_cloud_scheduler_job" "daily_workflow" {
-  name             = "discount-tracker-daily"
-  description      = "Triggers the discount tracker workflow daily at 9 PM GMT-3"
-  schedule         = "0 0 * * *"
+# Weekly schedule on mondays: 9 PM GMT-3 = 00:00 UTC
+resource "google_cloud_scheduler_job" "weekly_workflow" {
+  name             = "discount-tracker-weekly"
+  description      = "Triggers the discount tracker workflow weekly on mondays at 9 PM GMT-3"
+  schedule         = "0 0 * * 1"
   time_zone        = "UTC"
   region           = var.region
   attempt_deadline = "1800s"
