@@ -2,13 +2,22 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from html import escape
+from pathlib import Path
+import base64
+import unicodedata
 from google.oauth2 import service_account
 from google.cloud import bigquery
 
-### BIGQUERY AUTH
+### BIGQUERY CONFIGS
 creds = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
 client = bigquery.Client(credentials=creds, project=st.secrets["gcp_service_account"]["project_id"])
+project_id = st.secrets["gcp_service_account"]["project_id"]
 ###
+
+CACHE_DATA_STR = "Cargando datos... Esto puede demorar unos segundos."
+BASE_DIR = Path(__file__).resolve().parent
+ICONS_DIR = BASE_DIR / "utils" / "icons"
+ICONS_MAPPING_FILE = BASE_DIR / "utils" / "issuer_icon_mapping.csv"
 
 # Page Configuration
 st.set_page_config(
@@ -17,19 +26,65 @@ st.set_page_config(
     layout="wide"
 )
 
+def load_query(query_file):
+    with open(BASE_DIR / "utils" / "queries" / query_file, "r") as f:
+        return f.read().replace("{project_id}", project_id)
+
 # Data Loading
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600, show_spinner=CACHE_DATA_STR)
 def load_discount_data():
     try:
-        query = "SELECT * FROM `vocal-tracer-484119-t7.prod_dbt_analytics.streamlit_data`"
+        query = load_query("streamlit_data.sql")
         df = client.query(query).to_dataframe()
         
         return df
     except Exception as e:
-        st.error(
-            f"Error al cargar datos: {e}"
-        )
         return pd.DataFrame()  # Return empty DataFrame on error
+
+
+@st.cache_data(ttl=600, show_spinner=CACHE_DATA_STR)
+def load_issuer_metadata():
+    try:
+        query = load_query("issuer_metadata.sql")
+        return client.query(query).to_dataframe()
+    except Exception as e:
+        return pd.DataFrame()
+
+def normalize_issuer_key(value):
+    if pd.isna(value) or value is None:
+        return ""
+    value = str(value).strip().lower()
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    return "".join(ch for ch in value if ch.isalnum())
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def load_issuer_icon_mapping():
+    try:
+        mapping_df = pd.read_csv(ICONS_MAPPING_FILE)
+    except FileNotFoundError:
+        return {}
+
+    cleaned = mapping_df.dropna(subset=["issuer_name", "icon_file"]).copy()
+    cleaned["issuer_name_key"] = cleaned["issuer_name"].apply(normalize_issuer_key)
+    cleaned = cleaned[cleaned["issuer_name_key"] != ""]
+
+    mapping = (
+        cleaned
+        .drop_duplicates(subset=["issuer_name_key"], keep="last")
+        .set_index("issuer_name_key")["icon_file"]
+        .to_dict()
+    )
+    return mapping
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_base64_icon(icon_path_str):
+    try:
+        with open(icon_path_str, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    except Exception:
+        return None
 
 # Helper Functions
 def truncate_text(text, max_length=150):
@@ -69,6 +124,55 @@ def get_validity(row):
         return "Solo en Tienda"
     else:
         return "Desconocido"
+
+
+# --- PAGE: ISSUER STATUS ---
+def page_issuer_status():
+    st.title("Estado de Emisores")
+    st.markdown("Listado de emisores activos con fecha de última actualización y cantidad de descuentos.")
+
+    metadata_df = load_issuer_metadata()
+    icon_mapping = load_issuer_icon_mapping()
+
+    if metadata_df.empty:
+        st.warning("No se encontró metadata de emisores. ¿Ejecutaste los modelos de dbt?")
+        return
+
+    metadata_df = metadata_df.copy()
+    metadata_df["last_scraped_at"] = pd.to_datetime(metadata_df["last_scraped_at"], errors="coerce")
+    metadata_df["discount_count"] = pd.to_numeric(metadata_df["discount_count"], errors="coerce").fillna(0).astype(int)
+
+    latest_scrape = metadata_df["last_scraped_at"].max()
+    latest_scrape_label = latest_scrape.strftime("%d/%m/%Y %H:%M") if pd.notna(latest_scrape) else "N/A"
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Emisores Activos", len(metadata_df))
+    col2.metric("Total Descuentos", int(metadata_df["discount_count"].sum()))
+    col3.metric("Última Actualización", latest_scrape_label)
+
+    st.divider()
+
+    for _, row in metadata_df.iterrows():
+        issuer_name = str(row.get("issuer_name", "Emisor"))
+        issuer_key = normalize_issuer_key(issuer_name)
+        icon_filename = icon_mapping.get(issuer_key)
+        icon_path = ICONS_DIR / icon_filename if icon_filename else None
+        issuer_last_scrape = row.get("last_scraped_at")
+        issuer_last_scrape_label = issuer_last_scrape.strftime("%d/%m/%Y %H:%M") if pd.notna(issuer_last_scrape) else "N/A"
+
+        with st.container(border=True):
+            icon_col, info_col, metric_col = st.columns([1.2, 4.8, 2.0])
+
+            with icon_col:
+                if icon_path and icon_path.exists():
+                    st.image(str(icon_path), width=56)
+
+            with info_col:
+                st.markdown(f"**{issuer_name}**")
+                st.caption(f"Último scrape: {issuer_last_scrape_label}")
+
+            with metric_col:
+                st.metric("Descuentos", int(row.get("discount_count", 0)))
 
 
 # --- PAGE: DISCOUNT DASHBOARD ---
@@ -166,6 +270,7 @@ def page_explorer():
     day_order = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
     df = load_discount_data()
+    icon_mapping = load_issuer_icon_mapping()
 
     if df.empty:
         st.warning("No se encontraron datos. ¿Ejecutaste los modelos de dbt?")
@@ -313,6 +418,16 @@ def page_explorer():
             max_purchase_val = f"${int(row['discount_max_discount_amount'])}" if pd.notna(row['discount_max_discount_amount']) else 'N/A'
 
             valid_days_list = map_days(row['discount_valid_days_list'])
+            issuer_name = str(row.get('issuer_name', ''))
+            issuer_key = normalize_issuer_key(issuer_name)
+            icon_filename = icon_mapping.get(issuer_key)
+            icon_path = ICONS_DIR / icon_filename if icon_filename else None
+            icon_base64 = get_base64_icon(str(icon_path)) if icon_path and icon_path.exists() else None
+            icon_html = (
+                f"<img src=\"data:image/png;base64,{icon_base64}\" alt=\"{escape(issuer_name)}\" style=\"height:22px; width:auto; max-width:88px; object-fit:contain;\"/>"
+                if icon_base64
+                else ""
+            )
             day_badges = [
                 ("Lun", "L"),
                 ("Mar", "M"),
@@ -326,8 +441,9 @@ def page_explorer():
             with st.container(border=True):
                 st.markdown(
                     f"""
-                    <div style=\"background-color:rgba(0,163,108,0.12); border-radius:10px 10px 0 0; padding:4px 12px; margin:-0.95rem -0.95rem 0 -0.95rem; color:#00A36C; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em;\">
-                        {row['merchant_category_name']}
+                    <div style=\"background-color:rgba(0,163,108,0.12); border-radius:10px 10px 0 0; padding:4px 12px; margin:-0.95rem -0.95rem 0 -0.95rem; color:#00A36C; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:34px;\">
+                        <span style=\"overflow:hidden; text-overflow:ellipsis; white-space:nowrap;\">{row['merchant_category_name']}</span>
+                        <span style=\"display:inline-flex; align-items:center; justify-content:flex-end; min-width:24px;\">{icon_html}</span>
                     </div>
                     <div style=\"background-color:#F0F7F4; padding:10px 12px; margin:0 -0.95rem 0.75rem -0.95rem; height:5.5rem; display:flex; align-items:center;\">
                         <h3 style=\"margin:0; color:#1A202C; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;\">{row['merchant_name']}</h3>
@@ -402,5 +518,6 @@ def page_explorer():
 pg = st.navigation([
     st.Page(page_dashboard, title="Dashboard", icon=":material/dashboard:"),
     st.Page(page_explorer, title="Explorador de descuentos", icon=":material/search:"),
+    st.Page(page_issuer_status, title="Estado de emisores", icon=":material/fact_check:"),
 ])
 pg.run()

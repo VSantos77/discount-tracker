@@ -81,3 +81,16 @@ models:
           - not_null
           - unique
       - name: issuer_name
+  - name: issuer_metadata
+    description: "Active issuer metadata for Streamlit: issuer name, last scrape timestamp, and discount counts"
+    columns:
+      - name: issuer_name
+        data_tests:
+          - not_null
+          - unique
+      - name: last_scraped_at
+        data_tests:
+          - not_null
+      - name: discount_count
+        data_tests:
+          - not_null
