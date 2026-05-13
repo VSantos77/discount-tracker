@@ -1,6 +1,8 @@
 # 💸 Discount Tracker
 
-Discount Tracker is a data product for tracking bank promotions in Argentina, implementing a full ELT cloud data pipeline. It ingests issuer promotions, standardizes them with dbt, and serves the curated result in a Streamlit dashboard.
+Discount Tracker is a data product for tracking bank promotions in Argentina, implementing a full ELT cloud data pipeline. It ingests issuer promotions, standardizes them with dbt, and serves the curated result in a [Streamlit Dashboard](https://catalogo-de-descuentos.streamlit.app/).
+
+![alt text](resources/image.png)
 
 ## Overview
 
@@ -42,7 +44,7 @@ The repository is organized around three clear layers: Extraction + Loading, Tra
 3. BigQuery exposes the raw landing zone as an external table.
 4. dbt transforms the raw data into staging, intermediate, and analytics models.
 5. Streamlit reads only the curated BigQuery models and renders the user-facing dashboard.
-6. Terraform provisions the cloud resources, service accounts, datasets, and Cloud Run jobs that tie the pipeline together.
+6. Terraform provisions the cloud resources, service accounts, datasets, Cloud Workflows, Cloud Scheduler, and Cloud Run jobs that tie the pipeline together.
 
 ## Main components
 
@@ -80,6 +82,8 @@ The Streamlit app keeps its own runtime dependencies in [discount_tracker_stream
 ### Infrastructure
 
 Terraform lives in [terraform](terraform). It provisions the bucket, BigQuery datasets, Cloud Run jobs, service accounts, and the workflow that orchestrates the pipeline in GCP.
+
+Orchestration is handled by a Cloud Workflow that runs the scraper and dbt jobs, with Cloud Scheduler used to trigger that workflow on a schedule.
 
 This is where the deployment boundary is enforced:
 
