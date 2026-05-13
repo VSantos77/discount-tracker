@@ -6,23 +6,3 @@ models:
 
   - name: stg_galicia
     description: "Staging model for Galicia discounts"
-
-  - name: stg_bancoprovincia
-    description: "Staging model for Banco Provincia discounts"
-    config:
-      enabled: false
-
-  - name: stg_cuentadni
-    description: "Staging model for Cuenta DNI discounts"
-    config:
-      enabled: false
-
-  - name: stg_modo
-    description: "Staging model for MODO discounts"
-    config:
-      enabled: false
-
-  - name: stg_santander
-    description: "Staging model for Santander discounts"
-    config:
-      enabled: false
