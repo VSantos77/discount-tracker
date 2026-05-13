@@ -126,6 +126,39 @@ def get_validity(row):
         return "Desconocido"
 
 
+def format_discount_fields(row):
+    discount_rate_raw = row.get('discount_rate')
+    if pd.notna(discount_rate_raw) and float(discount_rate_raw) > 0:
+        discount_rate = f"{discount_rate_raw:.0%}"
+    else:
+        discount_rate = "-"
+
+    installments_raw = row.get('discount_no_interest_installment_qty')
+    if pd.notna(installments_raw) and float(installments_raw) > 0:
+        installments_value = str(int(installments_raw))
+    else:
+        installments_value = "-"
+
+    min_purchase_raw = row.get('discount_min_purchase_amount')
+    if pd.notna(min_purchase_raw):
+        min_purchase_value = "Sin mínimo" if float(min_purchase_raw) == 0 else f"${int(min_purchase_raw)}"
+    else:
+        min_purchase_value = "N/A"
+
+    max_discount_raw = row.get('discount_max_discount_amount')
+    if pd.notna(max_discount_raw):
+        max_discount_value = "Sin tope" if float(max_discount_raw) == 0 else f"${int(max_discount_raw)}"
+    else:
+        max_discount_value = "N/A"
+
+    return discount_rate, installments_value, min_purchase_value, max_discount_value
+
+def format_display_value(value, suffix=""):
+    if value == "-":
+        return "-"
+    return f"{value}{suffix}"
+
+
 # --- PAGE: ISSUER STATUS ---
 def page_issuer_status():
     st.title("Estado de Emisores")
@@ -133,10 +166,6 @@ def page_issuer_status():
 
     metadata_df = load_issuer_metadata()
     icon_mapping = load_issuer_icon_mapping()
-
-    if metadata_df.empty:
-        st.warning("No se encontró metadata de emisores. ¿Ejecutaste los modelos de dbt?")
-        return
 
     metadata_df = metadata_df.copy()
     metadata_df["last_scraped_at"] = pd.to_datetime(metadata_df["last_scraped_at"], errors="coerce")
@@ -187,10 +216,6 @@ def page_dashboard():
     category_scale = ["#DDF1E8", "#A7DEC5", "#67CDA2", "#34B885", "#00A36C"]
 
     df = load_discount_data()
-
-    if df.empty:
-        st.warning("No se encontraron datos. ¿Ejecutaste los modelos de dbt?")
-        return
 
     # Summary metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -260,7 +285,250 @@ def page_dashboard():
         st.subheader("Descuentos por Categoría")
         st.plotly_chart(fig_category, use_container_width=True)
 
-    st.caption("Datos actualizados vía orquestador Scrapy & dbt.")
+
+# --- PAGE: GUIDED SEARCH ---
+def page_guided_search():
+    st.title("Buscador guiado de descuentos")
+    st.markdown("Seguí estos pasos para encontrar descuentos según tus preferencias.")
+
+    df = load_discount_data()
+    icon_mapping = load_issuer_icon_mapping()
+
+    df = df.copy()
+    df["valid_days_names"] = df["discount_valid_days_list"].apply(map_days)
+
+    st.subheader("¿Dónde querés comprar?")
+    merchant_col, category_col = st.columns(2)
+    with merchant_col:
+        merchant_query = st.text_input(
+            "Nombre del comercio",
+            placeholder="Ej: Coto, Starbucks, Carrefour...",
+            key="guided_merchant_query",
+        ).strip()
+    with category_col:
+        category_options = sorted(df["merchant_category_name"].dropna().unique())
+        selected_category = st.selectbox(
+            "Categoría",
+            options=category_options,
+            index=None,
+            placeholder="Todas las categorías",
+            key="guided_category_select",
+        )
+
+    has_primary_filter = bool(merchant_query) or bool(selected_category)
+
+    if not has_primary_filter:
+        return
+
+    st.subheader("¿Qué bancos/membresías tenés?")
+
+    pre_mask = pd.Series(True, index=df.index)
+    if merchant_query:
+        pre_mask = pre_mask & df["merchant_name"].str.contains(merchant_query, case=False, na=False)
+    if selected_category:
+        pre_mask = pre_mask & (df["merchant_category_name"] == selected_category)
+
+    prefiltered_df = df[pre_mask].copy()
+    issuer_options = sorted(prefiltered_df["issuer_name"].dropna().unique())
+    selected_issuers = st.multiselect(
+        "Emisores a considerar",
+        label_visibility="hidden",
+        options=issuer_options,
+        default=[],
+        placeholder="Podés elegir bancos u otras membresías",
+        key="guided_issuers",
+    )
+    if prefiltered_df.empty:
+        st.info("No hay descuentos que coincidan con comercio/categoría.")
+        return
+
+    if not selected_issuers:
+        return
+
+    st.divider()
+
+    st.markdown(
+        f"<h3 style='margin:0 0 0.25rem 0;'><span style='color:#00A36C; font-weight:800;'>{len(prefiltered_df)}</span> <span style='color:#00A36C; font-weight:800;'>descuentos</span> <span style='color:#1A202C; font-weight:600;'>encontrados</span></h3>",
+        unsafe_allow_html=True,
+    )
+
+    day_order = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+    rf_col1, rf_col2, rf_col3 = st.columns(3)
+    with rf_col1:
+        selected_result_days = st.multiselect(
+            "Filtrar por día de validez",
+            options=day_order,
+            default=[],
+            placeholder="Todos los días",
+            key="guided_result_days",
+        )
+
+    filtered_df = prefiltered_df[prefiltered_df["issuer_name"].isin(selected_issuers)]
+
+    if selected_result_days:
+        filtered_df = filtered_df[
+            filtered_df["valid_days_names"].apply(
+                lambda days: any(day in days for day in selected_result_days)
+            )
+        ]
+
+    merchant_options = sorted(filtered_df["merchant_name"].dropna().unique())
+    with rf_col2:
+        selected_result_merchant = st.selectbox(
+            "Filtrar por comercio",
+            options=merchant_options,
+            index=None,
+            placeholder="Todos los comercios",
+            key="guided_result_merchant_select",
+        )
+    with rf_col3:
+        result_order_by = st.selectbox(
+            "Ordenar por",
+            options=["Descuento más grande", "Más cuotas sin interés"],
+            index=0,
+            key="guided_result_order_by",
+        )
+
+    if selected_result_merchant:
+        filtered_df = filtered_df[
+            filtered_df["merchant_name"] == selected_result_merchant
+        ]
+
+    order_column = "discount_rate" if result_order_by == "Descuento más grande" else "discount_no_interest_installment_qty"
+    filtered_df = filtered_df.sort_values(
+        by=[order_column, "merchant_name"],
+        ascending=[False, True],
+    ).reset_index(drop=True)
+
+    filter_signature = (
+        merchant_query,
+        selected_category,
+        tuple(sorted(selected_issuers)),
+        tuple(selected_result_days),
+        selected_result_merchant,
+        result_order_by,
+    )
+    if st.session_state.get("guided_filter_signature") != filter_signature:
+        st.session_state["guided_filter_signature"] = filter_signature
+        st.session_state["guided_visible_count"] = 20
+
+    visible_count = st.session_state.get("guided_visible_count", 20)
+    shown_count = min(visible_count, len(filtered_df))
+    visible_df = filtered_df.head(shown_count)
+
+    st.caption(f"Mostrando {shown_count} de {len(filtered_df)} descuentos")
+
+    if filtered_df.empty:
+        st.info("No hay descuentos que coincidan con la búsqueda y emisores seleccionados.")
+        return
+
+    visible_rows = list(visible_df.iterrows())
+    for start_idx in range(0, len(visible_rows), 3):
+        row_cols = st.columns(3)
+        for col_idx, (_, row) in enumerate(visible_rows[start_idx:start_idx + 3]):
+            with row_cols[col_idx]:
+                issuer_name = str(row.get("issuer_name", ""))
+                issuer_key = normalize_issuer_key(issuer_name)
+                icon_filename = icon_mapping.get(issuer_key)
+                icon_path = ICONS_DIR / icon_filename if icon_filename else None
+                icon_base64 = get_base64_icon(str(icon_path)) if icon_path and icon_path.exists() else None
+                icon_html = (
+                    f"<img src=\"data:image/png;base64,{icon_base64}\" alt=\"{escape(issuer_name)}\" style=\"height:22px; width:auto; max-width:88px; object-fit:contain;\"/>"
+                    if icon_base64
+                    else ""
+                )
+
+                start_date = pd.to_datetime(row["discount_start_date"]).strftime("%d/%m/%Y") if pd.notna(row["discount_start_date"]) else "N/A"
+                end_date = pd.to_datetime(row["discount_end_date"]).strftime("%d/%m/%Y") if pd.notna(row["discount_end_date"]) else "N/A"
+                validity = get_validity(row)
+                discount_rate, installments_value, min_purchase_value, max_discount_value = format_discount_fields(row)
+                valid_days_list = map_days(row.get("discount_valid_days_list"))
+                day_badges = [
+                    ("Lun", "L"),
+                    ("Mar", "M"),
+                    ("Mié", "M"),
+                    ("Jue", "J"),
+                    ("Vie", "V"),
+                    ("Sáb", "S"),
+                    ("Dom", "D"),
+                ]
+
+                with st.container(border=True):
+                    st.markdown(
+                        f"""
+                        <div style="background-color:rgba(0,163,108,0.12); border-radius:10px 10px 0 0; padding:4px 12px; margin:-0.95rem -0.95rem 0 -0.95rem; color:#00A36C; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:34px;">
+                            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{escape(str(row.get('merchant_category_name', 'N/A')))}</span>
+                            <span style="display:inline-flex; align-items:center; justify-content:flex-end; min-width:24px;">{icon_html}</span>
+                        </div>
+                        <div style="background-color:#F0F7F4; padding:10px 12px; margin:0 -0.95rem 0.75rem -0.95rem; height:5.5rem; display:flex; align-items:center;">
+                            <h3 style="margin:0; color:#1A202C; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{escape(str(row.get('merchant_name', 'N/A')))}</h3>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    h1, h2 = st.columns(2)
+                    h1.markdown(
+                        f"""
+                            <div style="background-color:#F0F7F4; border:1px solid rgba(0,163,108,0.25); border-radius:10px; padding:8px 10px; text-align:center;">
+                            <div style=\"font-size:0.85rem; color:#1A202C;\">Descuento</div>
+                            <div style=\"font-size:1.8rem; font-weight:700; color:#00A36C; line-height:1.1;\">{format_display_value(discount_rate, ' OFF')}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    h2.markdown(
+                        f"""
+                            <div style="background-color:#F0F7F4; border:1px solid rgba(0,163,108,0.25); border-radius:10px; padding:8px 10px; text-align:center;">
+                            <div style=\"font-size:0.85rem; color:#1A202C;\">Cuotas sin interes</div>
+                            <div style=\"font-size:1.8rem; font-weight:700; color:#00A36C; line-height:1.1;\">{installments_value}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.text('') # buffer
+                    detail_rows = [
+                        ("Emisor", row['issuer_name']),
+                        ("Formato", validity),
+                        ("Validez", f"{start_date} a {end_date}"),
+                        ("Compra Mínima", min_purchase_value),
+                        ("Tope", max_discount_value),
+                    ]
+                    detail_rows_html = "".join(
+                        f"""
+                        <div style=\"display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin:0.25rem 0;\">
+                            <span style=\"font-weight:600; color:#1A202C;\">{escape(str(label))}:</span>
+                            <span style=\"text-align:right; color:#1A202C;\">{escape(str(value))}</span>
+                        </div>
+                        """
+                        for label, value in detail_rows
+                    )
+                    st.markdown(detail_rows_html, unsafe_allow_html=True)
+
+                    day_circles_html = "".join(
+                        f"""
+                        <span title=\"{escape(day_name)}\" style=\"width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:600; background:{'#00A36C' if day_name in valid_days_list else '#DDEBE4'}; color:{'#FFFFFF' if day_name in valid_days_list else '#607081'};\">{day_short}</span>
+                        """
+                        for day_name, day_short in day_badges
+                    )
+                    st.markdown(
+                        f"""
+                        <div style=\"display:flex; justify-content:space-between; align-items:center; gap:12px; margin:0.35rem 0 0.15rem 0;\">
+                            <span style=\"font-weight:600; color:#1A202C;\">Días Válidos:</span>
+                            <div style=\"display:flex; gap:6px;\">{day_circles_html}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    with st.popover("📋 Términos y Condiciones"):
+                        if pd.notna(row.get("discount_terms_and_conditions")) and str(row.get("discount_terms_and_conditions")).strip() != "":
+                            st.text(str(row.get("discount_terms_and_conditions")))
+                        else:
+                            st.text("No hay términos y condiciones disponibles.")
+
+    if shown_count < len(filtered_df):
+        if st.button("Cargar más descuentos", key="guided_load_more"):
+            st.session_state["guided_visible_count"] = shown_count + 20
+            st.rerun()
 
 
 # --- PAGE: DISCOUNT EXPLORER ---
@@ -271,10 +539,6 @@ def page_explorer():
 
     df = load_discount_data()
     icon_mapping = load_issuer_icon_mapping()
-
-    if df.empty:
-        st.warning("No se encontraron datos. ¿Ejecutaste los modelos de dbt?")
-        return
 
     df = df.copy()
     df["valid_days_names"] = df["discount_valid_days_list"].apply(map_days)
@@ -409,13 +673,29 @@ def page_explorer():
             end_date = pd.to_datetime(row['discount_end_date']).strftime('%d/%m/%Y') if pd.notna(row['discount_end_date']) else "N/A"
 
             validity = get_validity(row)
-            discount_rate = f"{row['discount_rate']:.0%}" if pd.notna(row['discount_rate']) else 'N/A'
+            discount_rate_raw = row.get('discount_rate')
+            if pd.notna(discount_rate_raw) and float(discount_rate_raw) > 0:
+                discount_rate = f"{discount_rate_raw:.0%}"
+            else:
+                discount_rate = "-"
 
-            installments_val = int(row['discount_no_interest_installment_qty']) if pd.notna(row['discount_no_interest_installment_qty']) else 'N/A'
-            installments_metric_value = str(installments_val) if installments_val != 'N/A' else 'N/A'
+            installments_raw = row.get('discount_no_interest_installment_qty')
+            if pd.notna(installments_raw) and float(installments_raw) > 0:
+                installments_metric_value = str(int(installments_raw))
+            else:
+                installments_metric_value = "-"
 
-            min_purchase_val = f"${int(row['discount_min_purchase_amount'])}" if pd.notna(row['discount_min_purchase_amount']) else 'N/A'
-            max_purchase_val = f"${int(row['discount_max_discount_amount'])}" if pd.notna(row['discount_max_discount_amount']) else 'N/A'
+            min_purchase_raw = row.get('discount_min_purchase_amount')
+            if pd.notna(min_purchase_raw):
+                min_purchase_val = "Sin mínimo" if float(min_purchase_raw) == 0 else f"${int(min_purchase_raw)}"
+            else:
+                min_purchase_val = 'N/A'
+
+            max_discount_raw = row.get('discount_max_discount_amount')
+            if pd.notna(max_discount_raw):
+                max_purchase_val = "Sin tope" if float(max_discount_raw) == 0 else f"${int(max_discount_raw)}"
+            else:
+                max_purchase_val = 'N/A'
 
             valid_days_list = map_days(row['discount_valid_days_list'])
             issuer_name = str(row.get('issuer_name', ''))
@@ -456,7 +736,7 @@ def page_explorer():
                     f"""
                         <div style="background-color:#F0F7F4; border:1px solid rgba(0,163,108,0.25); border-radius:10px; padding:8px 10px; text-align:center;">
                         <div style=\"font-size:0.85rem; color:#1A202C;\">Descuento</div>
-                        <div style=\"font-size:1.8rem; font-weight:700; color:#00A36C; line-height:1.1;\">{discount_rate} OFF</div>
+                        <div style=\"font-size:1.8rem; font-weight:700; color:#00A36C; line-height:1.1;\">{format_display_value(discount_rate, ' OFF')}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -507,17 +787,16 @@ def page_explorer():
 
                 with st.popover("📋 Términos y Condiciones"):
                     if pd.notna(row['discount_terms_and_conditions']) and row['discount_terms_and_conditions'] != '':
-                        st.markdown(row['discount_terms_and_conditions'])
+                        st.text(row['discount_terms_and_conditions'])
                     else:
                         st.text("No hay términos y condiciones disponibles.")
-
-    st.caption("Datos actualizados vía orquestador Scrapy & dbt.")
 
 
 # --- Navigation ---
 pg = st.navigation([
     st.Page(page_dashboard, title="Dashboard", icon=":material/dashboard:"),
     st.Page(page_explorer, title="Explorador de descuentos", icon=":material/search:"),
+    st.Page(page_guided_search, title="Buscador guiado", icon=":material/tune:"),
     st.Page(page_issuer_status, title="Estado de emisores", icon=":material/fact_check:"),
 ])
 pg.run()

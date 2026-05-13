@@ -3,6 +3,8 @@
     unique_key='discount_id',
     incremental_strategy='merge',
     merge_update_columns=[
+        'issuer_id',
+        'merchant_id',
         'discount_start_date',
         'discount_end_date',
         'discount_rate',
