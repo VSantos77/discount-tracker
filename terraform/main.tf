@@ -1,7 +1,7 @@
 # Create GCS Bucket to store raw data
 resource "google_storage_bucket" "data_lake" {
   name          = "${var.gcp_project_id}-discount-lake"
-  location      = "US-EAST1" # Explicitly us-east1 for Free Tier
+  location      = var.gcp_region # Explicitly us-east1 for Free Tier
   force_destroy = true       # Allows TF to delete even if it has data
 
   storage_class               = "STANDARD"
@@ -23,7 +23,7 @@ resource "google_bigquery_dataset" "dataset_raw_source" {
   dataset_id                  = "raw_source"
   friendly_name               = "Raw Source Data"
   description                 = "Warehouse for raw discount data from spiders (bronze layer)"
-  location                    = "US-EAST1"
+  location                    = var.gcp_region
   default_table_expiration_ms = null # Keep data permanently
 }
 
@@ -33,7 +33,7 @@ resource "google_bigquery_dataset" "dataset_prod_dbt_staged" {
   dataset_id                  = "prod_dbt_staged"
   friendly_name               = "Production DBT Staged Data"
   description                 = "Warehouse for staging and intermediate tables (silver layer)"
-  location                    = "US-EAST1"
+  location                    = var.gcp_region
   default_table_expiration_ms = null # Keep data permanently
 }
 
@@ -42,7 +42,7 @@ resource "google_bigquery_dataset" "dataset_prod_dbt_analytics" {
   dataset_id                  = "prod_dbt_analytics"
   friendly_name               = "Production DBT Analytics Data"
   description                 = "Warehouse for marts data (gold layer)"
-  location                    = "US-EAST1"
+  location                    = var.gcp_region
   default_table_expiration_ms = null # Keep data permanently
 }
 
@@ -52,7 +52,7 @@ resource "google_bigquery_dataset" "dataset_dev_dbt_staged" {
   dataset_id                  = "dev_dbt_staged"
   friendly_name               = "Development DBT Staged Data"
   description                 = "Warehouse for staging and intermediate tables (silver layer)"
-  location                    = "US-EAST1"
+  location                    = var.gcp_region
   default_table_expiration_ms = null # Keep data permanently
 }
 
@@ -61,7 +61,7 @@ resource "google_bigquery_dataset" "dataset_dev_dbt_analytics" {
   dataset_id                  = "dev_dbt_analytics"
   friendly_name               = "Development DBT Analytics Data"
   description                 = "Warehouse for marts data (gold layer)"
-  location                    = "US-EAST1"
+  location                    = var.gcp_region
   default_table_expiration_ms = null # Keep data permanently
 }
 
@@ -113,7 +113,7 @@ resource "google_service_account_iam_member" "allow_me_to_act_as_scraper" {
 
 resource "google_cloud_run_v2_job" "scrapy-job" {
   name     = "discount-tracker-scrapy-job"
-  location = var.region
+  location = var.gcp_region
 
   template {
     template {
@@ -186,7 +186,7 @@ resource "google_storage_bucket_iam_member" "dbt_gcs_object_viewer" {
 
 resource "google_cloud_run_v2_job" "dbt-job" {
   name     = "discount-tracker-dbt-job"
-  location = var.region
+  location = var.gcp_region
   template {
     template {
       service_account = google_service_account.dbt_sa.email
@@ -208,7 +208,7 @@ resource "google_cloud_run_v2_job" "dbt-job" {
         }
         env {
           name  = "GCP_REGION"
-          value = var.region
+          value = var.gcp_region
         }
       }
       max_retries = 0
@@ -260,7 +260,7 @@ resource "google_project_iam_member" "workflows_storage_viewer" {
 # Create a workflow
 resource "google_workflows_workflow" "discount-tracker-prod-workflow" {
   name            = "discount-tracker-prod-workflow"
-  region          = var.region
+  region          = var.gcp_region
   description     = "Prod discount tracker workflow"
   service_account = google_service_account.discount-tracker-workflows-sa.id
 
@@ -295,12 +295,12 @@ resource "google_cloud_scheduler_job" "weekly_workflow" {
   description      = "Triggers the discount tracker workflow weekly on mondays at 9 PM GMT-3"
   schedule         = "0 0 * * 1"
   time_zone        = "UTC"
-  region           = var.region
+  region           = var.gcp_region
   attempt_deadline = "1800s"
 
   http_target {
     http_method = "POST"
-    uri         = "https://workflowexecutions.googleapis.com/v1/projects/vocal-tracer-484119-t7/locations/${var.region}/workflows/discount-tracker-prod-workflow/executions"
+    uri         = "https://workflowexecutions.googleapis.com/v1/projects/vocal-tracer-484119-t7/locations/${var.gcp_region}/workflows/discount-tracker-prod-workflow/executions"
     body        = base64encode(jsonencode({
       argument = jsonencode({
         dbt_custom_cmd         = "build --target cloud-run-prod"

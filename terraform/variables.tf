@@ -3,7 +3,7 @@ variable "gcp_project_id" {
   description = "The ID of the project in GCP"
 }
 
-variable "region" {
+variable "gcp_region" {
   type        = string
   default     = "us-east1" # Required for Always Free tier
   description = "Region for all resources"
