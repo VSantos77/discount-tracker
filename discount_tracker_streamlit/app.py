@@ -161,8 +161,7 @@ def format_display_value(value, suffix=""):
 
 # --- PAGE: ISSUER STATUS ---
 def page_issuer_status():
-    st.title("Estado de Emisores")
-    st.markdown("Listado de emisores activos con fecha de última actualización y cantidad de descuentos.")
+    st.title("Entidades disponibles")
 
     metadata_df = load_issuer_metadata()
     icon_mapping = load_issuer_icon_mapping()
@@ -175,7 +174,7 @@ def page_issuer_status():
     latest_scrape_label = latest_scrape.strftime("%d/%m/%Y %H:%M") if pd.notna(latest_scrape) else "N/A"
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Emisores Activos", len(metadata_df))
+    col1.metric("Entidades Activas", len(metadata_df))
     col2.metric("Total Descuentos", int(metadata_df["discount_count"].sum()))
     col3.metric("Última Actualización", latest_scrape_label)
 
@@ -198,7 +197,7 @@ def page_issuer_status():
 
             with info_col:
                 st.markdown(f"**{issuer_name}**")
-                st.caption(f"Último scrape: {issuer_last_scrape_label}")
+                st.caption(f"Última actualización: {issuer_last_scrape_label}")
 
             with metric_col:
                 st.metric("Descuentos", int(row.get("discount_count", 0)))
@@ -288,8 +287,7 @@ def page_dashboard():
 
 # --- PAGE: GUIDED SEARCH ---
 def page_guided_search():
-    st.title("Buscador guiado de descuentos")
-    st.markdown("Seguí estos pasos para encontrar descuentos según tus preferencias.")
+    st.title("Explorar descuentos")
 
     df = load_discount_data()
     icon_mapping = load_issuer_icon_mapping()
@@ -794,9 +792,7 @@ def page_explorer():
 
 # --- Navigation ---
 pg = st.navigation([
-    st.Page(page_dashboard, title="Dashboard", icon=":material/dashboard:"),
-    st.Page(page_explorer, title="Explorador de descuentos", icon=":material/search:"),
-    st.Page(page_guided_search, title="Buscador guiado", icon=":material/tune:"),
-    st.Page(page_issuer_status, title="Estado de emisores", icon=":material/fact_check:"),
+    st.Page(page_guided_search, title="Explorar descuentos", icon=":material/tune:"),
+    st.Page(page_issuer_status, title="Entidades disponibles", icon=":material/fact_check:"),
 ])
 pg.run()
