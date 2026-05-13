@@ -1,6 +1,6 @@
 # 💸 Discount Tracker
 
-Discount Tracker is a data product for tracking bank promotions in Argentina. It ingests issuer promotions, standardizes them with dbt, and serves the curated result in a Streamlit dashboard.
+Discount Tracker is a data product for tracking bank promotions in Argentina, implementing a full ELT cloud data pipeline. It ingests issuer promotions, standardizes them with dbt, and serves the curated result in a Streamlit dashboard.
 
 ## Overview
 
