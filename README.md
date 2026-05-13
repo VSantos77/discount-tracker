@@ -91,7 +91,9 @@ This is where the deployment boundary is enforced:
 
 - One repository, multiple runtimes. The repo keeps the scraper, warehouse logic, and dashboard together so the data flow stays visible, but each runtime has a clear boundary.
 - GCS plus BigQuery instead of a local database. Raw files land in object storage, and BigQuery is the analytical store. That fits the cloud workflow better than a local Postgres-centric setup.
-- dbt owns transformation and data quality. Business logic is centralized in SQL models and tests, which makes the warehouse easier to reason about than embedding that logic in the dashboard.
+- Hive partitioning on the raw external table keeps reads focused on the scraped date partitions that matter, instead of forcing every query to scan the full landing zone.
+- dbt models use incremental materializations where the data is growing steadily, which keeps repeated builds fast and makes warehouse updates cheaper to run.
+- dbt tests and dbt-expectations rules enforce basic quality checks such as not-null, uniqueness, valid ranges, and date ordering before the dashboard ever sees the data.
 - Streamlit reads curated data only. The app is intentionally presentation-only, so it stays lightweight and easier to run locally or deploy separately.
 - Terraform owns the cloud shape. Infrastructure, IAM, datasets, and Cloud Run jobs are declared as code so the environment can be recreated consistently.
 - Dependency ownership is explicit. Shared project tooling is managed at the repository root with [pyproject.toml](pyproject.toml), while Streamlit keeps app-local runtime dependencies in its own folder for easier hosting on Streamlit Cloud.
