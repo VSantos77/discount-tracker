@@ -93,6 +93,7 @@ This is where the deployment boundary is enforced:
 - GCS plus BigQuery instead of a local database. Raw files land in object storage, and BigQuery is the analytical store. That fits the cloud workflow better than a local Postgres-centric setup.
 - Hive partitioning on the raw external table keeps reads focused on the scraped date partitions that matter, instead of forcing every query to scan the full landing zone.
 - dbt models use incremental materializations where the data is growing steadily, which keeps repeated builds fast and makes warehouse updates cheaper to run.
+- dbt also implements a medallion-style structure: raw data is exposed through the bronze landing zone, transformed into silver staging and intermediate models, and published as gold analytics models for the dashboard.
 - dbt tests and dbt-expectations rules enforce basic quality checks such as not-null, uniqueness, valid ranges, and date ordering before the dashboard ever sees the data.
 - Streamlit reads curated data only. The app is intentionally presentation-only, so it stays lightweight and easier to run locally or deploy separately.
 - Terraform owns the cloud shape. Infrastructure, IAM, datasets, and Cloud Run jobs are declared as code so the environment can be recreated consistently.
