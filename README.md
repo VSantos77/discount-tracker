@@ -1,6 +1,8 @@
 # 💸 Discount Tracker
 
-Discount Tracker is a data product for tracking bank promotions in Argentina, implementing a full ELT cloud data pipeline. It ingests issuer promotions, standardizes them with dbt, and serves the curated result in a [Streamlit Dashboard](https://catalogo-de-descuentos.streamlit.app/).
+Discount Tracker is a platform that helps track discounts for different banks and other issuing entities in Argentina, implementing a full ELT cloud data pipeline. It scrapes live discount data from various sources, standardizes and validates it using dbt, and serves the curated result in a [Streamlit Dashboard](https://catalogo-de-descuentos.streamlit.app/).
+
+> NOTE: this was my submission for the 2026 edition of the [Data Engineering Zoomcamp](https://datatalks.club/blog/data-engineering-zoomcamp.html) (DataTalksClub) capstone project. As such, it's not intended to be an extensive catalog of discounts available across all entities in Argentina, but rather a quick prototype to showcase tools and concepts learned.
 
 ![alt text](resources/image.png)
 
@@ -8,7 +10,7 @@ Discount Tracker is a data product for tracking bank promotions in Argentina, im
 
 The repository is organized around three clear layers: Extraction + Loading, Transformation and Presentation.
 
-```text
+ ```text
 ┌──────────────────────────────┐
 │ Scrapy spiders               │
 │ - crawl issuer websites      │
@@ -101,7 +103,7 @@ This is where the deployment boundary is enforced:
 - dbt tests and dbt-expectations rules enforce basic quality checks such as not-null, uniqueness, valid ranges, and date ordering before the dashboard ever sees the data.
 - Streamlit reads curated data only. The app is intentionally presentation-only, so it stays lightweight and easier to run locally or deploy separately.
 - Terraform owns the cloud shape. Infrastructure, IAM, datasets, and Cloud Run jobs are declared as code so the environment can be recreated consistently.
-- Dependency ownership is explicit. Shared project tooling is managed at the repository root with [pyproject.toml](pyproject.toml), while Streamlit keeps app-local runtime dependencies in its own folder for easier hosting on Streamlit Cloud.
+- Scrapy and dbt runners each install only the required dependencies, keeping docker image size as low as possible.
 
 ## Local setup
 
