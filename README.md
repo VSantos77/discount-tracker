@@ -4,6 +4,8 @@ Discount Tracker is a platform that helps track discounts for different banks an
 
 > NOTE: this was my submission for the 2026 edition of the [Data Engineering Zoomcamp](https://datatalks.club/blog/data-engineering-zoomcamp.html) (DataTalksClub) capstone project. As such, it's not intended to be an extensive catalog of discounts available across all entities in Argentina, but rather a quick prototype to showcase tools and concepts learned.
 
+> NOTE: The UI is in Spanish because the target audience is in Argentina. Browser translation usually works well if you want to inspect it in another language.
+
 ![alt text](resources/image.png)
 
 ## Overview
@@ -155,9 +157,3 @@ discount-tracker/
 | Visualization | Plotly |
 | IaC | Terraform |
 | Runtime orchestration | Google Cloud Run Jobs + Workflows |
-
-## Notes
-
-The UI is in Spanish because the target audience is in Argentina. Browser translation usually works well if you want to inspect it in another language.
-
-The repository does not use a Postgres-based local architecture anymore, so older references to PostgreSQL, docker-compose, or local orchestration scripts have been removed from this README on purpose.
