@@ -105,19 +105,11 @@ This is where the deployment boundary is enforced:
 - Terraform owns the cloud shape. Infrastructure, IAM, datasets, and Cloud Run jobs are declared as code so the environment can be recreated consistently.
 - Scrapy and dbt runners each install only the required dependencies, keeping docker image size as low as possible.
 
-## Local setup
+## Setup
 
 The repo is Python 3.12+ and uses `uv` at the root.
 
-Typical workflow:
-
-```bash
-uv sync --group scrapy
-uv sync --group dbt
-uv run streamlit run discount_tracker_streamlit/app.py
-```
-
-If you want to run the dashboard locally, you also need a Streamlit secrets file with the BigQuery service account data expected by [discount_tracker_streamlit/app.py](discount_tracker_streamlit/app.py).
+For cloud deployment, see [docs/cloud-setup.md](docs/cloud-setup.md).
 
 ## Environment variables
 
