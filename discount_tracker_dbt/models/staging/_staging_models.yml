@@ -6,3 +6,6 @@ models:
 
   - name: stg_galicia
     description: "Staging model for Galicia discounts"
+
+  - name: stg_naranjax
+    description: "Staging model for Naranja X discounts"
