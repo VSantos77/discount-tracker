@@ -1,5 +1,5 @@
 discount-tracker-bq:
-  target: cloud-run-prod
+  target: local-dev
   outputs:
     cloud-run-prod:
       type: bigquery
