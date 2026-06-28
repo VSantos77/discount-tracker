@@ -1,21 +1,15 @@
-/*
-  int_joined_discounts.sql
-  -----------------
-  Union of all per-issuer staging models.
-  Surrogate key is generated here so downstream marts reference a single model.
-
-  To add a new issuer: create stg_<issuer>.sql and add a UNION ALL branch below.
-*/
-
 with
 
 bbva              as (select * from {{ ref('stg_bbva') }}),
 galicia           as (select * from {{ ref('stg_galicia') }}),
+naranjax          as (select * from {{ ref('stg_naranjax') }}),
 
 unioned as (
     select * from bbva
     union all
     select * from galicia
+    union all
+    select * from naranjax
 ),
 
 combined as (
@@ -29,6 +23,7 @@ combined as (
         merchant_category_name,
         discount_start_date,
         discount_end_date,
+        (discount_start_date <= CURRENT_DATE AND discount_end_date > CURRENT_DATE) AS discount_is_active,
         GREATEST(COALESCE(discount_rate,0),0) AS discount_rate,
         discount_name,
         discount_description,
@@ -41,7 +36,7 @@ combined as (
         discount_valid_online,
         discount_valid_instore,
         discount_metadata,
-        scraped_at_dt
+        scraped_at_dt AS last_updated_at_date
     from unioned
 ),
 
@@ -51,7 +46,7 @@ deduped as (
     from combined
     qualify row_number() over (
         partition by discount_id 
-        order by scraped_at_dt desc
+        order by last_updated_at_date desc
     ) = 1
 )
 
