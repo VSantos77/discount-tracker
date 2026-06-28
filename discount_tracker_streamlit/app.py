@@ -12,6 +12,7 @@ from google.cloud import bigquery
 creds = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
 client = bigquery.Client(credentials=creds, project=st.secrets["gcp_service_account"]["project_id"])
 project_id = st.secrets["gcp_service_account"]["project_id"]
+bigquery_db = st.secrets["bigquery"]["database"]
 ###
 
 CACHE_DATA_STR = "Cargando datos... Esto puede demorar unos segundos."
@@ -28,7 +29,8 @@ st.set_page_config(
 
 def load_query(query_file):
     with open(BASE_DIR / "utils" / "queries" / query_file, "r") as f:
-        return f.read().replace("{project_id}", project_id)
+        return f.read().replace("{project_id}", project_id)\
+            .replace("{bigquery_db}", bigquery_db)
 
 # Data Loading
 @st.cache_data(ttl=600, show_spinner=CACHE_DATA_STR)
