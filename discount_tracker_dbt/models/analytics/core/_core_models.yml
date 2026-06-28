@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: fct_discounts
+    description: >
+        "Fact table for discounts.
+        Grain: one row per discount
+        
+        Has primary id (=discount_business_id) and PK linking
+        to dim models."
+    columns:
+      - name: id
+        data_tests:
+          - not_null
+          - unique        
+      - name: issuer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_issuers')
+                field: id
+      - name: merchant_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_merchants')
+                field: id
+      
+  - name: dim_merchants
+    description: >
+        "Dimension table for merchants containing information
+        about the merchants offering discounts
+        
+        Grain: one row per merchant"
+    columns:
+      - name: id
+        data_tests:
+          - not_null
+          - unique
+      - name: name
+        data_tests:
+          - not_null
+      - name: category_name_normalized
+        data_tests:
+          - not_null
+
+  - name: dim_issuers
+    description: >
+        "Dimension table for issuers, containing information
+        about the issuers offering discounts
+        
+        Grain: one row per issuer"
+    columns:
+      - name: id
+        data_tests:
+          - not_null
+          - unique
+      - name: name

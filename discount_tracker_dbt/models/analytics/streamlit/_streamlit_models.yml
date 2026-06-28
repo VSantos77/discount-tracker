@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: issuer_metadata
+    description: "Active issuer metadata for Streamlit: issuer name, last scrape timestamp, and discount counts"
+    columns:
+      - name: issuer_name
+      - name: last_scraped_at
+      - name: discount_count
+  - name: streamlit_data
+    data_tests:
+      - dbt_expectations.expect_table_row_count_to_equal_other_table:
+          arguments:
+            compare_model: ref('fct_discounts')
