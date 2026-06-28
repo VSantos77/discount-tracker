@@ -21,3 +21,4 @@ temp_streamlit_env/
 target/
 dbt_packages/
 logs/
+**data/
