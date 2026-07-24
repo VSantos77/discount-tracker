@@ -23,7 +23,6 @@ combined as (
         merchant_category_name,
         discount_start_date,
         discount_end_date,
-        (discount_start_date <= CURRENT_DATE AND discount_end_date > CURRENT_DATE) AS discount_is_active,
         GREATEST(COALESCE(discount_rate,0),0) AS discount_rate,
         discount_name,
         discount_description,
