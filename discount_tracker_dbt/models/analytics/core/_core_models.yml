@@ -4,10 +4,7 @@ models:
   - name: fct_discounts
     description: >
         "Fact table for discounts.
-        Grain: one row per discount
-        
-        Has primary id (=discount_business_id) and PK linking
-        to dim models."
+        Grain: one row per discount"
     columns:
       - name: id
         data_tests:

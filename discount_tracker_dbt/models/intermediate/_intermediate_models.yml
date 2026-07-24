@@ -78,7 +78,7 @@ models:
         "Takes int_business_dedup_audit but keeps only the first record
         effectively deduplicating for downstream consumption."
       columns:
-        - name: discount_business_id
+        - name: discount_content_hash
           data_tests:
             - unique
             - not_null
