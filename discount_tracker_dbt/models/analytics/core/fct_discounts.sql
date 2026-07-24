@@ -1,7 +1,21 @@
+{{
+    config(
+        materialized='incremental',
+        unique_key='id',
+        incremental_strategy='merge'
+    )
+}}
+
+
 with discounts as (
     select
         *
     from {{ ref('int_business_deduped_discounts') }}
+    {% if is_incremental() %}
+    where last_updated_at_date > (select max(last_updated_at_date) from {{ this }})
+    {% elif var('cutoff_date', none) is not none %}
+    where last_updated_at_date <= '{{ var("cutoff_date") }}'
+    {% endif %}
 ),
 
 issuers as (
@@ -17,12 +31,11 @@ merchants as (
 )
 
 select
-    d.discount_business_id AS id,
+    d.discount_id AS id,
     i.id AS issuer_id,
     m.id AS merchant_id,
     d.discount_start_date AS start_date,
     d.discount_end_date AS end_date,
-    d.discount_is_active AS is_active,
     d.discount_rate AS rate,
     d.discount_no_interest_installment_qty AS no_interest_installment_qty,
     d.discount_name AS name,
