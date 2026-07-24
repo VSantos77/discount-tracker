@@ -347,13 +347,15 @@ def page_guided_search():
 
     st.divider()
 
+    _show_inactive = st.session_state.get("guided_show_inactive", False)
+    _display_count = len(prefiltered_df) if _show_inactive else int(prefiltered_df["discount_is_active"].sum())
     st.markdown(
-        f"<h3 style='margin:0 0 0.25rem 0;'><span style='color:#00A36C; font-weight:800;'>{len(prefiltered_df)}</span> <span style='color:#00A36C; font-weight:800;'>descuentos</span> <span style='color:#1A202C; font-weight:600;'>encontrados</span></h3>",
+        f"<h3 style='margin:0 0 0.25rem 0;'><span style='color:#00A36C; font-weight:800;'>{_display_count}</span> <span style='color:#00A36C; font-weight:800;'>descuentos</span> <span style='color:#1A202C; font-weight:600;'>encontrados</span></h3>",
         unsafe_allow_html=True,
     )
 
     day_order = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-    rf_col1, rf_col2, rf_col3 = st.columns(3)
+    rf_col1, rf_col2, rf_col3, rf_col4 = st.columns(4)
     with rf_col1:
         selected_result_days = st.multiselect(
             "Filtrar por día de validez",
@@ -388,6 +390,8 @@ def page_guided_search():
             index=0,
             key="guided_result_order_by",
         )
+    with rf_col4:
+        show_inactive = st.toggle("Incluir vencidos", value=False, key="guided_show_inactive")
 
     if selected_result_merchant:
         filtered_df = filtered_df[
@@ -400,6 +404,9 @@ def page_guided_search():
         ascending=[False, True],
     ).reset_index(drop=True)
 
+    if not show_inactive:
+        filtered_df = filtered_df[filtered_df["discount_is_active"] == True]
+
     filter_signature = (
         merchant_query,
         selected_category,
@@ -407,6 +414,7 @@ def page_guided_search():
         tuple(selected_result_days),
         selected_result_merchant,
         result_order_by,
+        show_inactive,
     )
     if st.session_state.get("guided_filter_signature") != filter_signature:
         st.session_state["guided_filter_signature"] = filter_signature
@@ -453,15 +461,37 @@ def page_guided_search():
                     ("Dom", "D"),
                 ]
 
+                is_active = row.get('discount_is_active', True)
+                if is_active:
+                    c_primary     = '#00A36C'
+                    c_bg          = 'rgba(0,163,108,0.12)'
+                    c_content     = '#F0F7F4'
+                    c_border      = 'rgba(0,163,108,0.25)'
+                    c_text        = '#1A202C'
+                    c_day_on      = '#00A36C'
+                    c_day_off     = '#DDEBE4'
+                    c_day_on_txt  = '#FFFFFF'
+                    c_day_off_txt = '#607081'
+                else:
+                    c_primary     = '#9CA3AF'
+                    c_bg          = 'rgba(156,163,175,0.12)'
+                    c_content     = '#F3F4F6'
+                    c_border      = 'rgba(156,163,175,0.25)'
+                    c_text        = '#6B7280'
+                    c_day_on      = '#9CA3AF'
+                    c_day_off     = '#E5E7EB'
+                    c_day_on_txt  = '#FFFFFF'
+                    c_day_off_txt = '#9CA3AF'
+
                 with st.container(border=True):
                     st.markdown(
                         f"""
-                        <div style="background-color:rgba(0,163,108,0.12); border-radius:10px 10px 0 0; padding:4px 12px; margin:-0.95rem -0.95rem 0 -0.95rem; color:#00A36C; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:34px;">
+                        <div style="background-color:{c_bg}; border-radius:10px 10px 0 0; padding:4px 12px; margin:-0.95rem -0.95rem 0 -0.95rem; color:{c_primary}; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:34px;">
                             <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{escape(str(row.get('merchant_category_name', 'N/A')))}</span>
                             <span style="display:inline-flex; align-items:center; justify-content:flex-end; min-width:24px;">{icon_html}</span>
                         </div>
-                        <div style="background-color:#F0F7F4; padding:10px 12px; margin:0 -0.95rem 0.75rem -0.95rem; height:5.5rem; display:flex; align-items:center;">
-                            <h3 style="margin:0; color:#1A202C; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{escape(str(row.get('merchant_name', 'N/A')))}</h3>
+                        <div style="background-color:{c_content}; padding:10px 12px; margin:0 -0.95rem 0.75rem -0.95rem; height:5.5rem; display:flex; align-items:center;">
+                            <h3 style="margin:0; color:{c_text}; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{escape(str(row.get('merchant_name', 'N/A')))}</h3>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -469,18 +499,18 @@ def page_guided_search():
                     h1, h2 = st.columns(2)
                     h1.markdown(
                         f"""
-                            <div style="background-color:#F0F7F4; border:1px solid rgba(0,163,108,0.25); border-radius:10px; padding:8px 10px; text-align:center;">
-                            <div style=\"font-size:0.85rem; color:#1A202C;\">Descuento</div>
-                            <div style=\"font-size:1.8rem; font-weight:700; color:#00A36C; line-height:1.1;\">{format_display_value(discount_rate, ' OFF')}</div>
+                            <div style="background-color:{c_content}; border:1px solid {c_border}; border-radius:10px; padding:8px 10px; text-align:center;">
+                            <div style=\"font-size:0.85rem; color:{c_text};\">Descuento</div>
+                            <div style=\"font-size:1.8rem; font-weight:700; color:{c_primary}; line-height:1.1;\">{format_display_value(discount_rate, ' OFF')}</div>
                         </div>
                         """,
                         unsafe_allow_html=True,
                     )
                     h2.markdown(
                         f"""
-                            <div style="background-color:#F0F7F4; border:1px solid rgba(0,163,108,0.25); border-radius:10px; padding:8px 10px; text-align:center;">
-                            <div style=\"font-size:0.85rem; color:#1A202C;\">Cuotas sin interes</div>
-                            <div style=\"font-size:1.8rem; font-weight:700; color:#00A36C; line-height:1.1;\">{installments_value}</div>
+                            <div style="background-color:{c_content}; border:1px solid {c_border}; border-radius:10px; padding:8px 10px; text-align:center;">
+                            <div style=\"font-size:0.85rem; color:{c_text};\">Cuotas sin interes</div>
+                            <div style=\"font-size:1.8rem; font-weight:700; color:{c_primary}; line-height:1.1;\">{installments_value}</div>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -496,8 +526,8 @@ def page_guided_search():
                     detail_rows_html = "".join(
                         f"""
                         <div style=\"display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin:0.25rem 0;\">
-                            <span style=\"font-weight:600; color:#1A202C;\">{escape(str(label))}:</span>
-                            <span style=\"text-align:right; color:#1A202C;\">{escape(str(value))}</span>
+                            <span style=\"font-weight:600; color:{c_text};\">{escape(str(label))}:</span>
+                            <span style=\"text-align:right; color:{c_text};\">{escape(str(value))}</span>
                         </div>
                         """
                         for label, value in detail_rows
@@ -506,14 +536,14 @@ def page_guided_search():
 
                     day_circles_html = "".join(
                         f"""
-                        <span title=\"{escape(day_name)}\" style=\"width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:600; background:{'#00A36C' if day_name in valid_days_list else '#DDEBE4'}; color:{'#FFFFFF' if day_name in valid_days_list else '#607081'};\">{day_short}</span>
+                        <span title=\"{escape(day_name)}\" style=\"width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:600; background:{c_day_on if day_name in valid_days_list else c_day_off}; color:{c_day_on_txt if day_name in valid_days_list else c_day_off_txt};\">{day_short}</span>
                         """
                         for day_name, day_short in day_badges
                     )
                     st.markdown(
                         f"""
                         <div style=\"display:flex; justify-content:space-between; align-items:center; gap:12px; margin:0.35rem 0 0.15rem 0;\">
-                            <span style=\"font-weight:600; color:#1A202C;\">Días Válidos:</span>
+                            <span style=\"font-weight:600; color:{c_text};\">Días Válidos:</span>
                             <div style=\"display:flex; gap:6px;\">{day_circles_html}</div>
                         </div>
                         """,
