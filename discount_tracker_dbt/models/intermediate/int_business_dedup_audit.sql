@@ -24,7 +24,7 @@ discounts_with_surrogate_key as (
             'discount_valid_days_list_str',
             'discount_valid_online',
             'discount_valid_instore'
-        ])}} AS discount_business_id,
+        ])}} AS discount_content_hash,
         * except(discount_valid_days_list_str)
     from discounts_prepared
 ),
@@ -33,8 +33,8 @@ discounts_with_rank as (
     select
         *,
         row_number() over(
-            partition by discount_business_id
-            order by last_updated_at_date desc
+            partition by discount_content_hash
+            order by last_updated_at_date desc, discount_id asc
         ) as rn
     from discounts_with_surrogate_key
 )
