@@ -11,6 +11,11 @@ discounts_prepared as (
 
 discounts_with_surrogate_key as (
     select
+        {# 
+            Some entitites can send the same discount with different source ids.
+            Generate content hash used for deduplication based on discount content.
+
+        #}
         {{ dbt_utils.generate_surrogate_key([
             'issuer_name',
             'merchant_name',

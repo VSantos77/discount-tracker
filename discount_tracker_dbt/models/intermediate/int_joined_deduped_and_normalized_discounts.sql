@@ -40,6 +40,10 @@ combined as (
 ),
 
 deduped as (
+    {# 
+        Dedup based on discount_id, since the same discount can 
+        be scraped multiple times.
+    #}
     select
         *
     from combined

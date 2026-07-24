@@ -13,6 +13,8 @@ with discounts as (
     from {{ ref('int_business_deduped_discounts') }}
     {% if is_incremental() %}
     where last_updated_at_date > (select max(last_updated_at_date) from {{ this }})
+    
+    {# Used for testing incremental logic #}
     {% elif var('cutoff_date', none) is not none %}
     where last_updated_at_date <= '{{ var("cutoff_date") }}'
     {% endif %}
