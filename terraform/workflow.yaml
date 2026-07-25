@@ -1,20 +1,44 @@
+# Entry point: orchestrates spiders → GCS check → dbt
+# High-level params (all optional):
+#   spiders                 list of spider names to run (default: all three)
+#   close_spider_itemcount  cap items per spider; 0 = no cap (default: 0)
+#   dbt_cmd                 dbt command with any flags, e.g. "build --select stg_naranjax+" (default: "build")
+#   dbt_target              dbt profile target (default: "local-dev")
+#   skip_scrapy             skip spider runs and GCS check; go straight to dbt (default: false)
+#   skip_dbt                skip dbt run; stop after scraping (default: false)
+# Infra overrides (rarely needed; defaults match the prod deployment):
+#   project_id, region, bucket, scrapy_job, dbt_job
 main:
   params: [args]
   steps:
     - init:
         assign:
-          - project_id: "vocal-tracer-484119-t7"
-          - region: "us-east1"
-          - bucket: "vocal-tracer-484119-t7-discount-lake"
-          - scrapy_job: "discount-tracker-scrapy-job"
-          - dbt_job: "discount-tracker-dbt-job"
-          - spiders: ${default(map.get(args, "spiders"), ["galicia", "bbva"])}
+          - project_id: ${default(map.get(args, "project_id"), "vocal-tracer-484119-t7")}
+          - region: ${default(map.get(args, "region"), "us-east1")}
+          - bucket: ${default(map.get(args, "bucket"), "vocal-tracer-484119-t7-discount-lake")}
+          - scrapy_job: ${default(map.get(args, "scrapy_job"), "discount-tracker-scrapy-job")}
+          - dbt_job: ${default(map.get(args, "dbt_job"), "discount-tracker-dbt-job")}
+          - spiders: ${default(map.get(args, "spiders"), ["galicia", "bbva", "naranjax"])}
           - workflow_start_time: ${sys.now()}
           - spider_results: {}
+          - new_files_count: 0
+          - dbt_exec_name: null
           - close_spider_itemcount: ${default(map.get(args, "close_spider_itemcount"), 0)}
-          - dbt_custom_cmd: ${default(map.get(args, "dbt_custom_cmd"), "build --target cloud-run-prod")}
+          - dbt_cmd: ${default(map.get(args, "dbt_cmd"), "build")}
+          - dbt_target: ${default(map.get(args, "dbt_target"), "local-dev")}
+          - skip_scrapy: ${default(map.get(args, "skip_scrapy"), false)}
+          - skip_dbt: ${default(map.get(args, "skip_dbt"), false)}
+
+    - check_skip_scrapy:
+        # Short-circuit: jump straight to dbt when caller wants to skip scraping
+        switch:
+          - condition: ${skip_scrapy}
+            next: check_skip_dbt
+          - condition: true
+            next: run_spiders_in_parallel
 
     - run_spiders_in_parallel:
+        # Run all spiders concurrently; spider_results is shared and written by each branch
         parallel:
           shared: [spider_results]
           for:
@@ -31,6 +55,7 @@ main:
                     close_spider_itemcount: ${close_spider_itemcount}
                   result: spider_result
               - store_result:
+                  # Persist each spider's result into the shared map keyed by spider name
                   assign:
                     - spider_results[spider]: ${spider_result}
               - log_result:
@@ -42,19 +67,29 @@ main:
                     severity: INFO
 
     - check_gcs:
+        # Gate: abort if no new files were created in GCS since the workflow started
         call: check_new_gcs_files
         args:
           bucket: ${bucket}
           workflow_start_time: ${workflow_start_time}
         result: new_files_count
 
+    - check_skip_dbt:
+        # Short-circuit: stop after scraping when caller wants to skip dbt
+        switch:
+          - condition: ${skip_dbt}
+            next: return_summary
+          - condition: true
+            next: run_dbt
+
     - run_dbt:
+        # Assemble dbt args: split cmd string then append --target flag
         call: run_and_wait_job
         args:
           project_id: ${project_id}
           region: ${region}
           job_name: ${dbt_job}
-          job_args: ${text.split(dbt_custom_cmd, " ")}
+          job_args: ${text.split(dbt_cmd + " --target " + dbt_target, " ")}
         result: dbt_exec_name
 
     - return_summary:
@@ -63,14 +98,18 @@ main:
           new_gcs_files: ${new_files_count}
           dbt_execution: ${dbt_exec_name}
 
+
 # Runs a single spider and returns its item count from Cloud Logging
 run_spider:
   params: [spider, project_id, region, scrapy_job, close_spider_itemcount]
   steps:
     - build_job_args:
+        # Append CLOSESPIDER_ITEMCOUNT when a cap is set (e.g. for test runs)
         assign:
           - job_args: ${if(close_spider_itemcount > 0, ["crawl", spider, "-s", "CLOSESPIDER_ITEMCOUNT=" + string(close_spider_itemcount)], ["crawl", spider])}
+
     - trigger_job:
+        # Run the Cloud Run Job and block until the execution completes
         call: run_and_wait_job
         args:
           project_id: ${project_id}
@@ -80,11 +119,13 @@ run_spider:
         result: exec_name
 
     - wait_for_logs:
+        # Brief pause to allow Cloud Logging to ingest the spider's stdout
         call: sys.sleep
         args:
           seconds: 5
 
     - query_logs:
+        # Fetch the WORKFLOW_STATS log line emitted by this specific execution
         call: http.post
         args:
           url: "https://logging.googleapis.com/v2/entries:list"
@@ -99,6 +140,7 @@ run_spider:
         result: log_response
 
     - check_log_entries:
+        # Guard: return 0 if no log entries found (logs may not have propagated yet)
         switch:
           - condition: ${"entries" in log_response.body and len(log_response.body.entries) > 0}
             next: extract_count
@@ -115,6 +157,7 @@ run_spider:
           - log_text: ${log_response.body.entries[0].textPayload}
 
     - check_key_present:
+        # Guard: verify the WORKFLOW_STATS marker is present before parsing
         switch:
           - condition: ${text.match_regex(log_text, ".*WORKFLOW_STATS.*")}
             next: parse_number
@@ -127,6 +170,7 @@ run_spider:
           items_scraped: 0
 
     - parse_number:
+        # Extract item count from log format: "WORKFLOW_STATS items_scraped:N"
         assign:
           - items_scraped: ${int(text.split(log_text, "items_scraped:")[1])}
 
@@ -135,11 +179,13 @@ run_spider:
           spider: ${spider}
           items_scraped: ${items_scraped}
 
-# Triggers a Cloud Run job and polls the LRO until completion; returns execution name
+
+# Triggers a Cloud Run Job and polls the LRO until completion; returns the execution name
 run_and_wait_job:
   params: [project_id, region, job_name, job_args]
   steps:
     - trigger:
+        # POST to Cloud Run v2 :run endpoint; containerOverrides replaces the job's default args
         call: http.post
         args:
           url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/" + job_name + ":run"}
@@ -152,10 +198,12 @@ run_and_wait_job:
         result: run_response
 
     - init_poll:
+        # Capture the Long-Running Operation name returned by the trigger response
         assign:
           - operation_name: ${run_response.body.name}
 
     - poll:
+        # GET the LRO status; done=true appears once the execution finishes
         call: http.get
         args:
           url: ${"https://run.googleapis.com/v2/" + operation_name}
@@ -171,17 +219,20 @@ run_and_wait_job:
             next: wait_and_retry
 
     - wait_and_retry:
+        # Sleep before retrying to avoid hammering the polling API
         call: sys.sleep
         args:
           seconds: 10
         next: poll
 
     - verify_success:
+        # A completed LRO with an error key means the job failed; raise propagates up and fails the workflow
         switch:
           - condition: ${"error" in op_status.body}
             raise: '${"Job " + job_name + " failed: " + op_status.body.error.message}'
 
     - extract_execution_name:
+        # Parse the last path segment from the resource name: ".../executions/<exec_name>"
         assign:
           - exec_parts: ${text.split(op_status.body.response.name, "/")}
           - exec_name: ${exec_parts[len(exec_parts) - 1]}
@@ -189,32 +240,35 @@ run_and_wait_job:
     - return_exec_name:
         return: ${exec_name}
 
-# Lists GCS landing objects and verifies at least one was created after workflow_start_time
+
+# Lists GCS landing objects across all pages; verifies at least one was created after workflow_start_time
 check_new_gcs_files:
   params: [bucket, workflow_start_time]
   steps:
-    - list_objects:
-        call: http.get
-        args:
-          url: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o"}
-          auth:
-            type: OAuth2
-          query:
-            prefix: "landing/"
-        result: gcs_response
-
-    - check_items_exist:
-        switch:
-          - condition: ${"items" in gcs_response.body and len(gcs_response.body.items) > 0}
-            next: count_new_files
-          - condition: true
-            raise: "No files found in GCS landing zone. Aborting dbt run."
-
-    - count_new_files:
+    - init:
         assign:
           - new_count: 0
+          - page_token: ""
+
+    - list_page:
+        # pageToken is appended to the URL only when non-empty; both if() branches are strings to avoid TypeError
+        call: http.get
+        args:
+          url: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o?prefix=landing/" + if(page_token != "", "&pageToken=" + page_token, "")}
+          auth:
+            type: OAuth2
+        result: gcs_response
+
+    - count_new_on_page:
+        # Skip counting if this page has no items (empty bucket or last page already processed)
+        switch:
+          - condition: ${"items" in gcs_response.body}
+            next: count_loop
+          - condition: true
+            next: check_next_page
 
     - count_loop:
+        # Count only objects created after the workflow started, ignoring pre-existing files
         for:
           value: obj
           in: ${gcs_response.body.items}
@@ -229,7 +283,21 @@ check_new_gcs_files:
                 assign:
                   - new_count: ${new_count + 1}
 
+    - check_next_page:
+        # If GCS returned a nextPageToken, store it and fetch the next page
+        switch:
+          - condition: ${"nextPageToken" in gcs_response.body}
+            next: set_page_token
+          - condition: true
+            next: verify_new_count
+
+    - set_page_token:
+        assign:
+          - page_token: ${gcs_response.body.nextPageToken}
+        next: list_page
+
     - verify_new_count:
+        # Abort if no new files were found across all pages
         switch:
           - condition: ${new_count == 0}
             raise: "No new files added to GCS landing zone since workflow started. Aborting dbt run."

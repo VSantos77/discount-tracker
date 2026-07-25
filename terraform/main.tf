@@ -118,7 +118,7 @@ resource "google_cloud_run_v2_job" "scrapy-job" {
   template {
     template {
       service_account = google_service_account.scraper_sa.email
-      timeout = "1800s" # 30 minutes, adjust as needed
+      timeout = "3600s" # 60 minutes, adjust as needed
       containers {
         image = "docker.io/vsantos77/discount-tracker-scrapy:v1.2"
         
@@ -303,7 +303,9 @@ resource "google_cloud_scheduler_job" "weekly_workflow" {
     uri         = "https://workflowexecutions.googleapis.com/v1/projects/vocal-tracer-484119-t7/locations/${var.gcp_region}/workflows/discount-tracker-prod-workflow/executions"
     body        = base64encode(jsonencode({
       argument = jsonencode({
-        dbt_custom_cmd         = "build --target cloud-run-prod"
+        spiders    = ["galicia", "bbva", "naranjax"]
+        dbt_cmd    = "build"
+        dbt_target = "cloud-run-prod"
       })
     }))
     headers = {
