@@ -17,3 +17,7 @@ scrapy = [
 dbt = [
     "dbt-bigquery>=1.11.1"
 ]
+
+scripts = [
+    "google-cloud-workflows>=1.16.0",
+]
