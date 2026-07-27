@@ -433,10 +433,9 @@ Each spider branch in the parallel loop calls the `run_spider` sub-routine, whic
 
 1. Builds job args: `["crawl", spider]`, extended to `["crawl", spider, "-s", "CLOSESPIDER_ITEMCOUNT=N"]` when `close_spider_itemcount > 0`
 2. Calls `run_and_wait_job` to trigger the Cloud Run job and block until it completes
-3. Sleeps 5 seconds to allow Cloud Logging to ingest the spider's final log lines
-4. POSTs to the Cloud Logging `entries:list` API, filtering by job name, execution name, and `WORKFLOW_STATS` in the payload
-5. Splits the log line on `"WORKFLOW_STATS "`, JSON-decodes the remainder, and reads `item_scraped_count`
-6. Returns `{ spider, items_scraped }` — or `{ spider, items_scraped: 0 }` if logs are missing or the marker is absent
+3. Returns the Cloud Run execution name for audit purposes
+
+Item counts are not tracked in the workflow; observability is handled entirely by the log-based metrics in Cloud Monitoring (see [Monitoring](#8-monitoring)).
 
 ### Job triggering (`run_and_wait_job`)
 
@@ -463,6 +462,24 @@ After all spiders complete, the workflow calls `check_new_gcs_files` before runn
 
 This gate handles partial failures gracefully: if some spiders succeeded and others failed, the healthy spiders' output still satisfies the gate and dbt runs on whatever was scraped.
 
+### Workflow return value
+
+The workflow returns a summary object for auditing executions in the Cloud Workflows console:
+
+```json
+{
+  "spider_executions": {
+    "galicia":  "discount-tracker-scrapy-job-execution-xxxx",
+    "bbva":     "discount-tracker-scrapy-job-execution-yyyy",
+    "naranjax": "discount-tracker-scrapy-job-execution-zzzz"
+  },
+  "new_gcs_files": 3,
+  "dbt_execution": "discount-tracker-dbt-job-execution-aaaa"
+}
+```
+
+Each execution name can be used to look up logs, job status, and metrics for a specific run in the GCP console.
+
 ### Cloud Scheduler
 
 Cloud Scheduler triggers the workflow via an authenticated HTTP POST to the Workflows executions API every Monday at 00:00 UTC (Monday 9 PM GMT-3). The request body encodes the production argument set:
@@ -485,7 +502,7 @@ When a spider finishes, `DiscountTrackerScrapySpiderMiddleware.spider_closed` em
 WORKFLOW_STATS {"item_scraped_count": 142, "elapsed_time_seconds": 87.3, "response_received_count": 148, "spider": "galicia", "finish_reason": "finished", ...}
 ```
 
-The middleware collects the full stats dict from `spider.crawler.stats.get_stats()`, serializes `datetime` values to ISO 8601 strings, filters out non-serializable types, then appends `spider` and `finish_reason` before logging. Every scalar stat Scrapy tracks is present in the payload — the workflow only reads `item_scraped_count`; everything else is available directly in Cloud Logging.
+The middleware collects the full stats dict from `spider.crawler.stats.get_stats()`, serializes `datetime` values to ISO 8601 strings, filters out non-serializable types, then appends `spider` and `finish_reason` before logging. Every scalar stat Scrapy tracks is present in the payload and is available directly in Cloud Logging. The workflow does not read from this log line — item counts and timing are consumed exclusively by the log-based metrics described below.
 
 This single log line serves two purposes: the workflow parses it to report per-spider item counts in the execution summary, and Cloud Logging's log-based metrics extract specific fields from it for time-series monitoring.
 
