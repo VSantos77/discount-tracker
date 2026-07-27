@@ -15,6 +15,7 @@ project_id = st.secrets["gcp_service_account"]["project_id"]
 bigquery_db = st.secrets["bigquery"]["database"]
 ###
 
+
 CACHE_DATA_STR = "Cargando datos... Esto puede demorar unos segundos."
 BASE_DIR = Path(__file__).resolve().parent
 ICONS_DIR = BASE_DIR / "utils" / "icons"
@@ -37,18 +38,17 @@ def load_query(query_file):
 def load_discount_data():
     try:
         query = load_query("streamlit_data.sql")
-        df = client.query(query).to_dataframe()
-        
+        df = client.query(query).to_dataframe(create_bqstorage_client=False)
         return df
     except Exception as e:
-        return pd.DataFrame()  # Return empty DataFrame on error
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=600, show_spinner=CACHE_DATA_STR)
 def load_issuer_metadata():
     try:
         query = load_query("issuer_metadata.sql")
-        return client.query(query).to_dataframe()
+        return client.query(query).to_dataframe(create_bqstorage_client=False)
     except Exception as e:
         return pd.DataFrame()
 
