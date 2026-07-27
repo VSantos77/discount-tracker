@@ -131,3 +131,40 @@ resource "google_cloud_run_v2_job" "dbt-job" {
     }
   }
 }
+
+
+# ---------------------------------------------------------------------------
+# Streamlit SA
+# ---------------------------------------------------------------------------
+
+resource "google_service_account" "streamlit_sa" {
+  account_id   = "discount-tracker-streamlit"
+  display_name = "Streamlit Dashboard Service Account"
+}
+
+# Run queries against BigQuery
+resource "google_project_iam_member" "streamlit_bq_job_user" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.streamlit_sa.email}"
+}
+
+# Read-only access to prod analytics dataset (streamlit_data, issuer_metadata)
+resource "google_bigquery_dataset_iam_member" "streamlit_prod_analytics_viewer" {
+  dataset_id = google_bigquery_dataset.dataset_prod_dbt_analytics.dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.streamlit_sa.email}"
+}
+
+# Read-only access to dev analytics dataset
+resource "google_bigquery_dataset_iam_member" "streamlit_dev_analytics_viewer" {
+  dataset_id = google_bigquery_dataset.dataset_dev_dbt_analytics.dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.streamlit_sa.email}"
+}
+
+resource "google_service_account_iam_member" "allow_me_to_act_as_streamlit" {
+  service_account_id = google_service_account.streamlit_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "user:santiago.villaverde07@gmail.com"
+}
