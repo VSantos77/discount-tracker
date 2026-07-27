@@ -20,7 +20,7 @@ main:
           - dbt_job: ${default(map.get(args, "dbt_job"), "discount-tracker-dbt-job")}
           - spiders: ${default(map.get(args, "spiders"), ["galicia", "bbva", "naranjax"])}
           - workflow_start_time: ${sys.now()}
-          - spider_results: {}
+          - spider_exec_names: {}
           - new_files_count: 0
           - dbt_exec_name: null
           - close_spider_itemcount: ${default(map.get(args, "close_spider_itemcount"), 0)}
@@ -38,9 +38,8 @@ main:
             next: run_spiders_in_parallel
 
     - run_spiders_in_parallel:
-        # Run all spiders concurrently; spider_results is shared and written by each branch
         parallel:
-          shared: [spider_results]
+          shared: [spider_exec_names]
           for:
             value: spider
             in: ${spiders}
@@ -53,18 +52,10 @@ main:
                     region: ${region}
                     scrapy_job: ${scrapy_job}
                     close_spider_itemcount: ${close_spider_itemcount}
-                  result: spider_result
-              - store_result:
-                  # Persist each spider's result into the shared map keyed by spider name
+                  result: spider_exec_name
+              - store_exec_name:
                   assign:
-                    - spider_results[spider]: ${spider_result}
-              - log_result:
-                  call: sys.log
-                  args:
-                    json:
-                      spider: ${spider}
-                      items_scraped: ${spider_result.items_scraped}
-                    severity: INFO
+                    - spider_exec_names[spider]: ${spider_exec_name}
 
     - check_gcs:
         # Gate: abort if no new files were created in GCS since the workflow started
@@ -94,12 +85,12 @@ main:
 
     - return_summary:
         return:
-          spider_results: ${spider_results}
+          spider_executions: ${spider_exec_names}
           new_gcs_files: ${new_files_count}
           dbt_execution: ${dbt_exec_name}
 
 
-# Runs a single spider and returns its item count from Cloud Logging
+# Runs a single spider and waits for completion
 run_spider:
   params: [spider, project_id, region, scrapy_job, close_spider_itemcount]
   steps:
@@ -109,7 +100,6 @@ run_spider:
           - job_args: ${if(close_spider_itemcount > 0, ["crawl", spider, "-s", "CLOSESPIDER_ITEMCOUNT=" + string(close_spider_itemcount)], ["crawl", spider])}
 
     - trigger_job:
-        # Run the Cloud Run Job and block until the execution completes
         call: run_and_wait_job
         args:
           project_id: ${project_id}
@@ -118,67 +108,8 @@ run_spider:
           job_args: ${job_args}
         result: exec_name
 
-    - wait_for_logs:
-        # Brief pause to allow Cloud Logging to ingest the spider's stdout
-        call: sys.sleep
-        args:
-          seconds: 5
-
-    - query_logs:
-        # Fetch the WORKFLOW_STATS log line emitted by this specific execution
-        call: http.post
-        args:
-          url: "https://logging.googleapis.com/v2/entries:list"
-          auth:
-            type: OAuth2
-          body:
-            resourceNames:
-              - ${"projects/" + project_id}
-            filter: ${"resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"" + scrapy_job + "\" AND labels.\"run.googleapis.com/execution_name\"=\"" + exec_name + "\" AND textPayload:\"WORKFLOW_STATS\""}
-            orderBy: "timestamp desc"
-            pageSize: 1
-        result: log_response
-
-    - check_log_entries:
-        # Guard: return 0 if no log entries found (logs may not have propagated yet)
-        switch:
-          - condition: ${"entries" in log_response.body and len(log_response.body.entries) > 0}
-            next: extract_count
-          - condition: true
-            next: return_zero_items
-
-    - return_zero_items:
-        return:
-          spider: ${spider}
-          items_scraped: 0
-
-    - extract_count:
-        assign:
-          - log_text: ${log_response.body.entries[0].textPayload}
-
-    - check_key_present:
-        # Guard: verify the WORKFLOW_STATS marker is present before parsing
-        switch:
-          - condition: ${text.match_regex(log_text, ".*WORKFLOW_STATS.*")}
-            next: parse_stats
-          - condition: true
-            next: return_zero_no_match
-
-    - return_zero_no_match:
-        return:
-          spider: ${spider}
-          items_scraped: 0
-
-    - parse_stats:
-        # Decode JSON payload after "WORKFLOW_STATS "; full stats are in Cloud Logging
-        assign:
-          - stats: ${json.decode(text.split(log_text, "WORKFLOW_STATS ")[1])}
-          - items_scraped: ${default(map.get(stats, "item_scraped_count"), 0)}
-
-    - return_result:
-        return:
-          spider: ${spider}
-          items_scraped: ${items_scraped}
+    - return_exec_name:
+        return: ${exec_name}
 
 
 # Triggers a Cloud Run Job and polls the LRO until completion; returns the execution name
