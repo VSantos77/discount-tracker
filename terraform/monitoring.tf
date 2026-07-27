@@ -6,7 +6,9 @@ locals {
     "textPayload=~\"WORKFLOW_STATS\"",
   ])
 
-  spider_label_extractor = "REGEXP_EXTRACT(textPayload, \"spider[^a-z]+([a-z]+)\")"
+  spider_label_extractor = <<EOF
+  REGEXP_EXTRACT(textPayload, "\\\"spider\\\": \\\"([a-z]+)\\\"")
+  EOF
 
   exponential_buckets = {
     num_finite_buckets = 64
