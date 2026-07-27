@@ -54,8 +54,18 @@ class DiscountTrackerScrapySpiderMiddleware:
         spider.logger.info("Spider opened: %s" % spider.name)
 
     def spider_closed(self, spider, reason):
-        items_scraped = spider.crawler.stats.get_value("item_scraped_count", 0)
-        spider.logger.info("WORKFLOW_STATS items_scraped:%d" % items_scraped)
+        import json
+        from datetime import datetime
+
+        raw = spider.crawler.stats.get_stats()
+        stats = {
+            k: v.isoformat() if isinstance(v, datetime) else v
+            for k, v in raw.items()
+            if isinstance(v, (int, float, str, bool, datetime)) or v is None
+        }
+        stats["spider"] = spider.name
+        stats["finish_reason"] = reason
+        spider.logger.info("WORKFLOW_STATS " + json.dumps(stats))
 
 
 class DiscountTrackerScrapyDownloaderMiddleware:

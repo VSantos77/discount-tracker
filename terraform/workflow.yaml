@@ -160,7 +160,7 @@ run_spider:
         # Guard: verify the WORKFLOW_STATS marker is present before parsing
         switch:
           - condition: ${text.match_regex(log_text, ".*WORKFLOW_STATS.*")}
-            next: parse_number
+            next: parse_stats
           - condition: true
             next: return_zero_no_match
 
@@ -169,10 +169,11 @@ run_spider:
           spider: ${spider}
           items_scraped: 0
 
-    - parse_number:
-        # Extract item count from log format: "WORKFLOW_STATS items_scraped:N"
+    - parse_stats:
+        # Decode JSON payload after "WORKFLOW_STATS "; full stats are in Cloud Logging
         assign:
-          - items_scraped: ${int(text.split(log_text, "items_scraped:")[1])}
+          - stats: ${json.decode(text.split(log_text, "WORKFLOW_STATS ")[1])}
+          - items_scraped: ${default(map.get(stats, "item_scraped_count"), 0)}
 
     - return_result:
         return:
