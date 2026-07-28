@@ -1,31 +1,45 @@
 version: 2
 
 models:
-    - name: int_joined_deduped_and_normalized_discounts
+    - name: int_unioned_discounts
+      description: "Union of all staging sources. No transformations applied."
+
+    - name: int_source_deduped_discounts
       description: >
-        "This model handles the union of the different sources,
-        dedups based on surrogate key based on source id + issuer
-        (since the same discount can be scraped multiple times over)
-        and normalizes fields / applies business logic for downstream
-        consumption."
-      data_tests:
-      # Ensure discount end date is at least the same as start_date
-      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
-          arguments:
-            column_A: discount_end_date
-            column_B: discount_start_date
-            or_equal: True
+        "Generates discount_id as a surrogate key on source_id + issuer_name and
+        deduplicates so that each logical discount keeps only the most recently
+        scraped record."
       columns:
         - name: discount_id
           data_tests:
             - unique
             - not_null
+
+    - name: int_normalized_discounts
+      description: >
+        "Applies field normalizations (COALESCE defaults, GREATEST guards) and
+        resolves the final merchant category. merchant_category_clean is derived
+        from the merchant-level override seed first, then the category mapping
+        seed, falling back to 'Sin categorizar'."
+      data_tests:
+        - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+            arguments:
+              column_A: discount_end_date
+              column_B: discount_start_date
+              or_equal: True
+      columns:
         - name: discount_start_date
           data_tests:
             - not_null
         - name: discount_end_date
           data_tests:
             - not_null
+        - name: merchant_category_clean
+          data_tests:
+            - not_null
+            - dbt_expectations.expect_column_values_to_not_be_in_set:
+                arguments:
+                  value_set: ['Sin categorizar']
         - name: discount_rate
           data_tests:
             - not_null
@@ -62,10 +76,10 @@ models:
         - name: discount_valid_instore
           data_tests:
             - not_null
-        - name: discount_metadata
         - name: last_updated_at_date
           data_tests:
             - not_null
+
     - name: int_business_dedup_audit
       description: >
         "Model that generates surrogate key based on key discount fields.
@@ -73,8 +87,9 @@ models:
         (with different ids).
 
         Keeping all duplicates for auditing."
+
     - name: int_business_deduped_discounts
-      description: > 
+      description: >
         "Takes int_business_dedup_audit but keeps only the first record
         effectively deduplicating for downstream consumption."
       columns:
