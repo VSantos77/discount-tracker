@@ -12,11 +12,12 @@ select
     JSON_VALUE(raw_payload, '$.source_id')                          as source_id,
     'Banco BBVA'                                                     as issuer_name,
 
-    -- Merchant name: strip trailing discount/installment annotation from cabecera
+    -- Merchant name: strip trailing discount/installment/benefit annotations from cabecera
     -- e.g. "Starbucks 20% de descuento" -> "Starbucks"
+    -- e.g. "Pasion Beneficio exclusivo MODO" -> "Pasion"
     TRIM(REGEXP_REPLACE(
         JSON_VALUE(raw_payload, '$.cabecera'),
-        r'(?i)\s+\d+(?:[.,]\d+)?\s*(?:%|cuotas).*$',
+        r'(?i)\s+(?:\d+(?:[.,]\d+)?\s*(?:%|cuotas)|Beneficio|descuento|exclusivo).*$',
         ''
     ))                                                               as merchant_name,
 
