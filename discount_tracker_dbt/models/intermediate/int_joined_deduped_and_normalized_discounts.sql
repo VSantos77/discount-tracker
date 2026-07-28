@@ -18,6 +18,7 @@ combined as (
             'source_id',
             'issuer_name'
         ]) }}                               as discount_id,
+        source_id, {# useful for auditing #}
         issuer_name,
         merchant_name,
         merchant_category_name,
