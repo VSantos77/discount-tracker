@@ -243,7 +243,7 @@ The dbt project lives in [discount_tracker_dbt/](discount_tracker_dbt/). It impl
 | Layer | Models | Dataset | Materialization |
 |---|---|---|---|
 | Staging | `stg_galicia`, `stg_bbva`, `stg_naranjax` | `{env}_dbt_staged` | View |
-| Intermediate | `int_joined_deduped_and_normalized_discounts`<br>`int_business_dedup_audit`<br>`int_business_deduped_discounts` | `{env}_dbt_staged` | View |
+| Intermediate | `int_unioned_discounts`<br>`int_source_deduped_discounts`<br>`int_normalized_discounts`<br>`int_business_dedup_audit`<br>`int_business_deduped_discounts` | `{env}_dbt_staged` | View |
 | Analytics — core | `dim_issuers`, `dim_merchants`, `fct_discounts` | `{env}_dbt_analytics` | Table / Incremental |
 | Analytics — streamlit | `streamlit_data`, `issuer_metadata` | `{env}_dbt_analytics` | Table |
 
@@ -285,21 +285,21 @@ Each staging model reads from `raw_discounts` filtered to its own spider and ext
 
 ### Intermediate layer
 
-**`int_joined_deduped_and_normalized_discounts`**
+The intermediate layer is split into five single-responsibility models, each building on the previous:
 
-Unions all three staging models, generates a `discount_id` surrogate key from `(source_id, issuer_name)` using `dbt_utils.generate_surrogate_key`, applies null coalescing on numeric fields, and deduplicates by `discount_id` keeping the most recent scrape:
+**`int_unioned_discounts`** — unions `stg_bbva`, `stg_galicia`, and `stg_naranjax` with no other logic.
+
+**`int_source_deduped_discounts`** — generates a `discount_id` surrogate key from `(source_id, issuer_name)` using `dbt_utils.generate_surrogate_key` and deduplicates by `discount_id` keeping the most recent scrape:
 
 ```sql
-QUALIFY ROW_NUMBER() OVER (PARTITION BY discount_id ORDER BY last_updated_at_date DESC) = 1
+QUALIFY ROW_NUMBER() OVER (PARTITION BY discount_id ORDER BY scraped_at_dt DESC) = 1
 ```
 
-**`int_business_dedup_audit`**
+**`int_normalized_discounts`** — applies field normalizations (null coalescing on numeric fields, `GREATEST` guards on rates and installments) and resolves `merchant_category_clean` through a two-step lookup: the `merchant_category_override` seed is checked first by merchant name; if no match, the `merchant_category_mapping` seed is checked by raw category string; unmatched rows fall back to `'Sin categorizar'`. This is the only layer where either seed is joined.
 
-Some issuers publish the same promotion with different source IDs across scrape runs. This model generates a `discount_content_hash` surrogate key from 12 business-content fields (issuer, merchant, category, dates, rate, amounts, installments, valid days, online/instore flags) and assigns a `ROW_NUMBER()` within each hash group, ordered by recency. All rows are kept for auditing.
+**`int_business_dedup_audit`** — some issuers publish the same promotion with different source IDs across scrape runs. This model generates a `discount_content_hash` surrogate key from 12 business-content fields (issuer, merchant, category, dates, rate, amounts, installments, valid days, online/instore flags) and assigns a `ROW_NUMBER()` within each hash group, ordered by recency. All rows are kept for auditing.
 
-**`int_business_deduped_discounts`**
-
-Filters the audit model to `rn = 1`, yielding one canonical row per unique business-level discount. This is the input to the analytics layer.
+**`int_business_deduped_discounts`** — filters the audit model to `rn = 1`, yielding one canonical row per unique business-level discount. This is the input to the analytics layer.
 
 ---
 
@@ -307,7 +307,7 @@ Filters the audit model to `rn = 1`, yielding one canonical row per unique busin
 
 **`dim_issuers`** — distinct `issuer_name` values with a surrogate `id`.
 
-**`dim_merchants`** — distinct `(merchant_name, merchant_category_name)` pairs joined to the `merchant_category_mapping` seed on lowercased `merchant_category_name`. The seed maps raw category strings from the source APIs (e.g. `Automotores`, `Bares`) to normalized Spanish labels (e.g. `Vehículos`, `Gastronomía`). Rows without a match fall back to `'Sin categorizar'`.
+**`dim_merchants`** — distinct `(merchant_name, merchant_category_clean)` pairs sourced from `int_business_deduped_discounts`. Category resolution is done upstream in `int_normalized_discounts`; this model reads the already-clean `merchant_category_clean` field directly and exposes it as `category_name`. No seed joins occur here.
 
 **`fct_discounts`** — the main fact table, materialized as incremental with `unique_key='id'` and merge strategy. Joins `int_business_deduped_discounts` with both dimension tables and drops the `discount_` prefix from all columns.
 
@@ -323,7 +323,7 @@ A `cutoff_date` dbt variable can be passed at run time to simulate historical lo
 
 ### Analytics — streamlit layer
 
-**`streamlit_data`** — joins `fct_discounts`, `dim_merchants`, and `dim_issuers`, reinstates the `discount_` prefix on all columns, uses `category_name_normalized` from the merchant dim, and adds a computed `discount_is_active` boolean (`start_date <= CURRENT_DATE AND end_date > CURRENT_DATE`). This is the primary table the Streamlit app reads.
+**`streamlit_data`** — joins `fct_discounts`, `dim_merchants`, and `dim_issuers`, reinstates the `discount_` prefix on all columns, uses `category_name` from the merchant dim as `merchant_category_name`, and adds a computed `discount_is_active` boolean (`start_date <= CURRENT_DATE AND end_date > CURRENT_DATE`). This is the primary table the Streamlit app reads.
 
 **`issuer_metadata`** — aggregates `fct_discounts` by issuer to produce `last_scraped_at` (max `last_updated_at_date`) and `discount_count`. Used by the issuer status page.
 
@@ -334,7 +334,8 @@ A `cutoff_date` dbt variable can be passed at run time to simulate historical lo
 Tests are layered to match each layer's responsibility.
 
 **Intermediate** — validates that mandatory fields are populated, business logic holds, and the deduplication strategy produces no duplicates:
-- `discount_id` is `not_null` and `unique` (no duplicate scrapes survive)
+- `discount_id` is `not_null` and `unique` on `int_source_deduped_discounts` (no duplicate scrapes survive)
+- `merchant_category_clean` is `not_null` and must not equal `'Sin categorizar'` on `int_normalized_discounts` (`dbt_expectations.expect_column_values_to_not_be_in_set`) — ensures every category is covered by either `merchant_category_override` or `merchant_category_mapping`
 - `discount_content_hash` is `not_null` and `unique` on `int_business_deduped_discounts` (no business-level duplicates)
 - `discount_rate` between 0–1; `discount_no_interest_installment_qty` ≥ 0
 - `discount_end_date >= discount_start_date` (`dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B`)
@@ -345,7 +346,6 @@ Tests are layered to match each layer's responsibility.
 - `dim_issuers.id` and `dim_merchants.id` are `not_null` and `unique`
 - `fct_discounts.id` is `not_null` and `unique`
 - `fct_discounts.issuer_id` and `fct_discounts.merchant_id` are `not_null` and pass `relationships` tests against their respective dimension tables — every fact row resolves to a known dimension member
-- `dim_merchants.category_name_normalized` is `not_null`; a custom singular test asserts no row carries the fallback value `'Sin categorizar'`, ensuring the category seed covers all raw category strings
 
 **Analytics — streamlit** — reconciliation tests ensuring the streamlit layer stays consistent with the core entities it is built from:
 - `issuer_metadata_recon_check` cross-joins the total row count in `fct_discounts` against the sum of `discount_count` across all rows in `issuer_metadata` and fails if they differ
