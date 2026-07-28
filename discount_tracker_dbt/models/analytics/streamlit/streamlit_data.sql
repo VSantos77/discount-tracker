@@ -20,7 +20,7 @@ select
         d.id AS discount_id,
         i.name AS issuer_name,
         m.name AS merchant_name,
-        m.category_name_normalized AS merchant_category_name,
+        m.category_name AS merchant_category_name,
         d.start_date AS discount_start_date,
         d.end_date AS discount_end_date,
         (d.start_date <= CURRENT_DATE AND d.end_date > CURRENT_DATE) AS discount_is_active,

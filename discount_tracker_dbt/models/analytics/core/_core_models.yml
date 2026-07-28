@@ -39,7 +39,7 @@ models:
       - name: name
         data_tests:
           - not_null
-      - name: category_name_normalized
+      - name: category_name
         data_tests:
           - not_null
 

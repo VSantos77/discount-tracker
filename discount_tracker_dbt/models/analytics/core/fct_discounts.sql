@@ -54,6 +54,6 @@ select
 from discounts d
 left join issuers i 
     on d.issuer_name = i.name
-left join merchants m 
-    on d.merchant_name = m.name 
-    and d.merchant_category_name = m.category_name_original
+left join merchants m
+    on d.merchant_name = m.name
+    and d.merchant_category_clean = m.category_name
