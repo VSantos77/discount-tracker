@@ -48,6 +48,29 @@ select
             ) / 100,
             4
         )
+        -- Fallback: extract from terms and conditions, e.g. "20% de reintegro", "30% de descuento"
+        when REGEXP_CONTAINS(JSON_VALUE(raw_payload, '$.basesCondiciones'), r'(?i)\d+(?:[.,]\d+)?\s*%\s*de\s*(?:reintegro|descuento)')
+        then ROUND(
+            SAFE_CAST(
+                REGEXP_REPLACE(
+                    REGEXP_EXTRACT(JSON_VALUE(raw_payload, '$.basesCondiciones'), r'(?i)(\d+(?:[.,]\d+)?)\s*%\s*de\s*(?:reintegro|descuento)'),
+                    r',', '.'
+                ) AS FLOAT64
+            ) / 100,
+            4
+        )
+        -- Fallback: first % match in beneficios[0].requisitos, e.g. "30% Jueves en pases"
+        -- CAST to STRING required because JSON_QUERY returns JSON type; requisitos is an array so JSON_VALUE would return null
+        when REGEXP_CONTAINS(TO_JSON_STRING(JSON_QUERY(raw_payload, '$.beneficios[0].requisitos')), r'\d+(?:[.,]\d+)?\s*%')
+        then ROUND(
+            SAFE_CAST(
+                REGEXP_REPLACE(
+                    REGEXP_EXTRACT(TO_JSON_STRING(JSON_QUERY(raw_payload, '$.beneficios[0].requisitos')), r'(\d+(?:[.,]\d+)?)\s*%'),
+                    r',', '.'
+                ) AS FLOAT64
+            ) / 100,
+            4
+        )
         else null
     end                                                              as discount_rate,
 
