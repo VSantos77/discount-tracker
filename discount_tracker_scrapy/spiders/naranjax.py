@@ -8,12 +8,12 @@ class NaranjaXSpider(scrapy.Spider):
     name = "naranjax"
     allowed_domains = ["bkn-promotions.naranjax.com"]
 
-    _catalog_url = "https://bkn-promotions.naranjax.com/bff-promotions-web/api/binder/filter"
-    _detail_url = "https://bkn-promotions.naranjax.com/bff-promotions-web/api/binder/{commerce}/detail/{plan}"
+    _base_url = 'https://bkn-promotions.naranjax.com/bff-promotions-web/api/binder'
+    _catalog_url = f"{_base_url}/filter"
+    _commerce_url = _base_url + "/{commerce}"
+    _detail_url = _base_url + "/{commerce}/detail/{plan}"
     _page_size = 10
 
-    # The BFF validates that requests look like same-site browser fetches.
-    # These headers mirror what Chrome sends for an XHR from naranjax.com.
     _base_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
@@ -56,10 +56,10 @@ class NaranjaXSpider(scrapy.Spider):
             meta={"page": page},
         )
 
-    def _detail_post(self, catalog_item):
+    def _detail_post(self, commerce, plan, discount_url):
         url = self._detail_url.format(
-            commerce=catalog_item["url"],
-            plan=catalog_item["urlDetail"],
+            commerce=commerce,
+            plan=plan,
         )
         return scrapy.Request(
             url=url,
@@ -74,16 +74,51 @@ class NaranjaXSpider(scrapy.Spider):
                 }
             }),
             callback=self.parse_detail,
-            meta={"catalog": catalog_item},
+            meta={
+                    'commerce' : commerce,
+                    'plan' : plan,
+                    'discount_url' : discount_url
+                },
+        )
+
+    def _multi_plan_post(self, multi_plan_item):
+
+        # Send request for multi plan commerces
+        commerce = multi_plan_item.get('url')
+        discount_url = multi_plan_item.get('fullUrl')
+
+        url = self._commerce_url.format(
+            commerce=commerce
+        )
+
+        return scrapy.Request(
+            url=url,
+            method='POST',
+            headers=self._base_headers,
+            body=json.dumps({
+                "payload": {
+                    "latitude": -34.61315,
+                    "longitude": -58.37723,
+                    "province": "Buenos Aires",
+                    "locality": "",
+                }
+            }),
+            callback=self.parse_multiplan,
+            meta={
+                'commerce' : commerce,
+                'discount_url' : discount_url
+            },
         )
 
     def start_requests(self):
         yield self._catalog_post(page=1)
 
     handle_httpstatus_list = [400, 403, 422, 429, 500]
-    custom_settings = {"ROBOTSTXT_OBEY": False}
+    # custom_settings = {"ROBOTSTXT_OBEY": False}
 
     def parse_catalog(self, response):
+
+        # If response fails, close spider and log error
         if response.status != 200:
             self.logger.error(
                 f"Catalog request failed — status {response.status}, body: {response.text[:500]}"
@@ -94,12 +129,15 @@ class NaranjaXSpider(scrapy.Spider):
 
         for item in data["data"]:
             if item.get("urlDetail"):
-                # Single-plan item: fetch detail for exact numeric fields and legal text
-                yield self._detail_post(item)
+                # Single-plan item: send request for details
+                yield self._detail_post(
+                    item.get('url'), 
+                    item.get('urlDetail'),
+                    item.get('fullUrl')
+                )
             else:
-                # Multi-plan item: plans are unnested in the staging layer from catalog data
-                yield item
-                self.crawler.stats.inc_value("custom/items_scraped/naranjax")
+                # Multi-plan item: send request for plans specifics
+                yield self._multi_plan_post(item)
 
         # On page 1, read the total and fan out all remaining pages concurrently
         if response.meta["page"] == 1:
@@ -110,17 +148,41 @@ class NaranjaXSpider(scrapy.Spider):
                 yield self._catalog_post(page=page)
 
     def parse_detail(self, response):
-        catalog = response.meta["catalog"]
+        commerce = response.meta['commerce']
+        plan = response.meta['plan']
+
         if response.status != 200:
             self.logger.warning(
                 f"Detail fetch failed ({response.status}) for "
-                f"{catalog['url']}/{catalog['urlDetail']}, falling back to catalog data"
+                f"{commerce}/{plan}"
             )
-            yield catalog
         else:
             detail = response.json()
             # Drop the list of individual store locations — it can be very large
             # and isn't useful for the discount data model
             detail.pop("commerces", None)
-            yield {**catalog, "detail": detail}
-        self.crawler.stats.inc_value("custom/items_scraped/naranjax")
+
+            yield {
+                    'id' : f'{commerce}_{plan}',
+                    'discount_url' : response.meta['discount_url'],
+                    **detail
+            }
+            self.crawler.stats.inc_value("custom/items_scraped/naranjax")
+
+    def parse_multiplan(self, response):
+        commerce = response.meta['commerce']
+        discount_url_base = response.meta['discount_url']
+
+        if response.status != 200:
+            self.logger.warning(
+                f"Multi plan fetch failed ({response.status}) for "
+                f"{commerce}"
+            )
+
+        # Generate one details request for each plan within commerce
+        else:
+            plan_url_list = [item['url'] for item in response.json()['nearCurrent']]
+
+            for plan in plan_url_list:
+                discount_url = f'{discount_url_base}/{plan}'
+                yield self._detail_post(commerce, plan, discount_url)
