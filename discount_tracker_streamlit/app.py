@@ -549,11 +549,17 @@ def page_guided_search():
                         """,
                         unsafe_allow_html=True,
                     )
-                    with st.popover("📋 Términos y Condiciones"):
-                        if pd.notna(row.get("discount_terms_and_conditions")) and str(row.get("discount_terms_and_conditions")).strip() != "":
-                            st.text(str(row.get("discount_terms_and_conditions")))
-                        else:
-                            st.text("No hay términos y condiciones disponibles.")
+
+                    bottom_col1, bottom_col2 = st.columns([0.6,0.4])
+
+                    with bottom_col1:
+                        with st.popover("📋 Términos y Condiciones"):
+                            if pd.notna(row.get("discount_terms_and_conditions")) and str(row.get("discount_terms_and_conditions")).strip() != "":
+                                st.text(str(row.get("discount_terms_and_conditions")))
+                            else:
+                                st.text("No hay términos y condiciones disponibles.")
+                    with bottom_col2:
+                        st.link_button('Ir al descuento', row.get('discount_url'), width='stretch')
 
     if shown_count < len(filtered_df):
         if st.button("Cargar más descuentos", key="guided_load_more"):
