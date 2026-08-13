@@ -9,128 +9,170 @@ with source as (
 )
 
 select
-    JSON_VALUE(raw_payload, '$.source_id')                          as source_id,
-    'Banco BBVA'                                                     as issuer_name,
+    json_value(raw_payload, '$.source_id') as source_id,
+    'Banco BBVA' as issuer_name,
 
     -- Merchant name: strip trailing discount/installment/benefit annotations from cabecera
     -- e.g. "Starbucks 20% de descuento" -> "Starbucks"
     -- e.g. "Pasion Beneficio exclusivo MODO" -> "Pasion"
-    TRIM(REGEXP_REPLACE(
-        JSON_VALUE(raw_payload, '$.cabecera'),
+    trim(regexp_replace(
+        json_value(raw_payload, '$.cabecera'),
         r'(?i)\s+(?:\d+(?:[.,]\d+)?\s*(?:%|cuotas)|Beneficio|descuento|exclusivo).*$',
         ''
-    ))                                                               as merchant_name,
+    )) as merchant_name,
 
-    JSON_VALUE(raw_payload, '$.category_name')                      as merchant_category_name,
+    json_value(raw_payload, '$.category_name') as merchant_category_name,
 
     -- Dates stored as YYYY-MM-DD
-    PARSE_DATE('%Y-%m-%d', JSON_VALUE(raw_payload, '$.discount_start_date'))  as discount_start_date,
-    PARSE_DATE('%Y-%m-%d', JSON_VALUE(raw_payload, '$.discount_end_date'))    as discount_end_date,
+    parse_date('%Y-%m-%d', json_value(raw_payload, '$.discount_start_date'))
+        as discount_start_date,
+    parse_date('%Y-%m-%d', json_value(raw_payload, '$.discount_end_date'))
+        as discount_end_date,
 
     -- Discount rate: extract first number followed by % from cabecera, fall back to subcabecera
     case
-        when REGEXP_CONTAINS(JSON_VALUE(raw_payload, '$.cabecera'), r'\d+(?:[.,]\d+)?\s*%')
-        then ROUND(
-            SAFE_CAST(
-                REGEXP_REPLACE(
-                    REGEXP_EXTRACT(JSON_VALUE(raw_payload, '$.cabecera'), r'(\d+(?:[.,]\d+)?)\s*%'),
-                    r',', '.'
-                ) AS FLOAT64
-            ) / 100,
-            4
-        )
-        when REGEXP_CONTAINS(JSON_VALUE(raw_payload, '$.subcabecera'), r'\d+(?:[.,]\d+)?\s*%')
-        then ROUND(
-            SAFE_CAST(
-                REGEXP_REPLACE(
-                    REGEXP_EXTRACT(JSON_VALUE(raw_payload, '$.subcabecera'), r'(\d+(?:[.,]\d+)?)\s*%'),
-                    r',', '.'
-                ) AS FLOAT64
-            ) / 100,
-            4
-        )
+        when regexp_contains(
+                json_value(raw_payload, '$.cabecera'), r'\d+(?:[.,]\d+)?\s*%'
+            )
+            then round(
+                    safe_cast(
+                        regexp_replace(
+                            regexp_extract(
+                                json_value(raw_payload, '$.cabecera'),
+                                r'(\d+(?:[.,]\d+)?)\s*%'
+                            ),
+                            r',', '.'
+                        ) as float64
+                    ) / 100,
+                    4
+                )
+        when regexp_contains(
+                json_value(raw_payload, '$.subcabecera'), r'\d+(?:[.,]\d+)?\s*%'
+            )
+            then round(
+                    safe_cast(
+                        regexp_replace(
+                            regexp_extract(
+                                json_value(raw_payload, '$.subcabecera'),
+                                r'(\d+(?:[.,]\d+)?)\s*%'
+                            ),
+                            r',', '.'
+                        ) as float64
+                    ) / 100,
+                    4
+                )
         -- Fallback: extract from terms and conditions, e.g. "20% de reintegro", "30% de descuento"
-        when REGEXP_CONTAINS(JSON_VALUE(raw_payload, '$.basesCondiciones'), r'(?i)\d+(?:[.,]\d+)?\s*%\s*de\s*(?:reintegro|descuento)')
-        then ROUND(
-            SAFE_CAST(
-                REGEXP_REPLACE(
-                    REGEXP_EXTRACT(JSON_VALUE(raw_payload, '$.basesCondiciones'), r'(?i)(\d+(?:[.,]\d+)?)\s*%\s*de\s*(?:reintegro|descuento)'),
-                    r',', '.'
-                ) AS FLOAT64
-            ) / 100,
-            4
-        )
+        when regexp_contains(
+                json_value(raw_payload, '$.basesCondiciones'),
+                r'(?i)\d+(?:[.,]\d+)?\s*%\s*de\s*(?:reintegro|descuento)'
+            )
+            then round(
+                    safe_cast(
+                        regexp_replace(
+                            regexp_extract(
+                                json_value(raw_payload, '$.basesCondiciones'),
+                                r'(?i)(\d+(?:[.,]\d+)?)\s*%\s*de\s*(?:reintegro|descuento)'
+                            ),
+                            r',', '.'
+                        ) as float64
+                    ) / 100,
+                    4
+                )
         -- Fallback: first % match in beneficios[0].requisitos, e.g. "30% Jueves en pases"
         -- CAST to STRING required because JSON_QUERY returns JSON type; requisitos is an array so JSON_VALUE would return null
-        when REGEXP_CONTAINS(TO_JSON_STRING(JSON_QUERY(raw_payload, '$.beneficios[0].requisitos')), r'\d+(?:[.,]\d+)?\s*%')
-        then ROUND(
-            SAFE_CAST(
-                REGEXP_REPLACE(
-                    REGEXP_EXTRACT(TO_JSON_STRING(JSON_QUERY(raw_payload, '$.beneficios[0].requisitos')), r'(\d+(?:[.,]\d+)?)\s*%'),
-                    r',', '.'
-                ) AS FLOAT64
-            ) / 100,
-            4
-        )
-        else null
-    end                                                              as discount_rate,
+        when regexp_contains(
+                to_json_string(
+                    json_query(raw_payload, '$.beneficios[0].requisitos')
+                ),
+                r'\d+(?:[.,]\d+)?\s*%'
+            )
+            then round(
+                    safe_cast(
+                        regexp_replace(
+                            regexp_extract(
+                                to_json_string(
+                                    json_query(
+                                        raw_payload,
+                                        '$.beneficios[0].requisitos'
+                                    )
+                                ),
+                                r'(\d+(?:[.,]\d+)?)\s*%'
+                            ),
+                            r',', '.'
+                        ) as float64
+                    ) / 100,
+                    4
+                )
+    end as discount_rate,
 
-    JSON_VALUE(raw_payload, '$.cabecera')                           as discount_name,
-    JSON_VALUE(raw_payload, '$.subcabecera')                        as discount_description,
-    JSON_VALUE(raw_payload, '$.basesCondiciones')                   as discount_terms_and_conditions,
-    CONCAT(
+    json_value(raw_payload, '$.cabecera') as discount_name,
+    json_value(raw_payload, '$.subcabecera') as discount_description,
+    json_value(raw_payload, '$.basesCondiciones')
+        as discount_terms_and_conditions,
+    concat(
         'https://www.bbva.com.ar/beneficios/beneficio.html?id=',
-        JSON_VALUE(raw_payload, '$.source_id')
-    )                                                               as discount_url,
+        json_value(raw_payload, '$.source_id')
+    ) as discount_url,
 
     -- Max discount amount from first beneficio entry
     case
-        when ARRAY_LENGTH(JSON_QUERY_ARRAY(raw_payload, '$.beneficios')) > 0
-        then SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.beneficios[0].tope')), '') AS FLOAT64)
-        else null
-    end                                                              as discount_max_discount_amount,
+        when array_length(json_query_array(raw_payload, '$.beneficios')) > 0
+            then safe_cast(
+                    nullif(
+                        trim(json_value(raw_payload, '$.beneficios[0].tope')),
+                        ''
+                    ) as float64
+                )
+    end as discount_max_discount_amount,
 
     -- Min purchase amount: extract from basesCondiciones
     -- Patterns: "superiores a $50.000" (. as thousands sep) or "mayores a $35000" (no sep)
     -- Removes dots used as thousands separators (RE2 does not support lookaheads)
     case
-        when REGEXP_CONTAINS(JSON_VALUE(raw_payload, '$.basesCondiciones'), r'(?i)(?:superiores?|mayores?)\s+a\s+\$\s*[\d.,]+')
-        then SAFE_CAST(
-                REGEXP_REPLACE(
-                    REGEXP_EXTRACT(
-                        JSON_VALUE(raw_payload, '$.basesCondiciones'),
-                        r'(?i)(?:superiores?|mayores?)\s+a\s+\$\s*([\d.,]+)'
-                    ),
-                    r'\.', ''
-                ) AS FLOAT64
-             )
-        else null
-    end                                                              as discount_min_purchase_amount,
+        when regexp_contains(
+                json_value(raw_payload, '$.basesCondiciones'),
+                r'(?i)(?:superiores?|mayores?)\s+a\s+\$\s*[\d.,]+'
+            )
+            then safe_cast(
+                    regexp_replace(
+                        regexp_extract(
+                            json_value(raw_payload, '$.basesCondiciones'),
+                            r'(?i)(?:superiores?|mayores?)\s+a\s+\$\s*([\d.,]+)'
+                        ),
+                        r'\.', ''
+                    ) as float64
+                )
+    end as discount_min_purchase_amount,
 
     case
-        when ARRAY_LENGTH(JSON_QUERY_ARRAY(raw_payload, '$.beneficios')) > 0
-        then SAFE_CAST(JSON_VALUE(raw_payload, '$.beneficios[0].cuota') AS INT64)
-        else null
-    end                                                              as discount_no_interest_installment_qty,
+        when array_length(json_query_array(raw_payload, '$.beneficios')) > 0
+            then safe_cast(
+                    json_value(raw_payload, '$.beneficios[0].cuota') as int64
+                )
+    end as discount_no_interest_installment_qty,
 
     -- Valid days: diasPromo is a 7-element comma-separated string of 0/1 flags (Mon-Sun)
     -- Convert to a 0-based integer array where flag = '1'
     -- If diasPromo is null, treat as valid all days (0-6)
     case
-        when JSON_VALUE(raw_payload, '$.diasPromo') is null
-        then [0,1,2,3,4,5,6]
-        else ARRAY(
-            select CAST(offset AS INT64)
-            from UNNEST(SPLIT(JSON_VALUE(raw_payload, '$.diasPromo'), ',')) AS flag WITH OFFSET AS offset
-            where flag = '1'
-        )
-    end                                                              as discount_valid_days_list,
+        when json_value(raw_payload, '$.diasPromo') is null
+            then [0, 1, 2, 3, 4, 5, 6]
+        else array(
+                select cast(offset as int64)
+                from unnest(
+                        split(json_value(raw_payload, '$.diasPromo'), ',')
+                    ) as flag with offset as offset
+                where flag = '1'
+            )
+    end as discount_valid_days_list,
 
     -- canalesVenta arrays: non-empty means valid for that channel
-    ARRAY_LENGTH(JSON_QUERY_ARRAY(raw_payload, '$.canalesVenta.web')) > 0        as discount_valid_online,
-    ARRAY_LENGTH(JSON_QUERY_ARRAY(raw_payload, '$.canalesVenta.sucursales')) > 0 as discount_valid_instore,
+    array_length(json_query_array(raw_payload, '$.canalesVenta.web'))
+    > 0 as discount_valid_online,
+    array_length(json_query_array(raw_payload, '$.canalesVenta.sucursales'))
+    > 0 as discount_valid_instore,
 
-    raw_payload                                                      as discount_metadata,
+    raw_payload as discount_metadata,
     scraped_at_dt
 
 from source

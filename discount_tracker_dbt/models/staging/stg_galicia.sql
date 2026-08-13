@@ -9,56 +9,76 @@ with source as (
 )
 
 select
-    JSON_VALUE(raw_payload, '$.source_id')                                      as source_id,
-    'Banco Galicia'                                                             as issuer_name,
+    json_value(raw_payload, '$.source_id') as source_id,
+    'Banco Galicia' as issuer_name,
 
     -- Category promotions use categoria.descripcion; brand promotions use marca.nombre
     case
-        when JSON_VALUE(raw_payload, '$.tipoPromocion') = 'Categoria'
-        then JSON_VALUE(raw_payload, '$.categoria.descripcion')
-        else JSON_VALUE(raw_payload, '$.marca.nombre')
-    end                                                                         as merchant_name,
+        when json_value(raw_payload, '$.tipoPromocion') = 'Categoria'
+            then json_value(raw_payload, '$.categoria.descripcion')
+        else json_value(raw_payload, '$.marca.nombre')
+    end as merchant_name,
 
     case
-        when JSON_VALUE(raw_payload, '$.tipoPromocion') = 'Categoria'
-        then JSON_VALUE(raw_payload, '$.categoria.descripcion')
-        else JSON_VALUE(raw_payload, '$.marca.categoria.descripcion')
-    end                                                                         as merchant_category_name,
+        when json_value(raw_payload, '$.tipoPromocion') = 'Categoria'
+            then json_value(raw_payload, '$.categoria.descripcion')
+        else json_value(raw_payload, '$.marca.categoria.descripcion')
+    end as merchant_category_name,
 
-    PARSE_DATE('%d/%m/%Y', JSON_VALUE(raw_payload, '$.fechaDesde'))             as discount_start_date,
-    PARSE_DATE('%d/%m/%Y', JSON_VALUE(raw_payload, '$.fechaHasta'))             as discount_end_date,
+    parse_date('%d/%m/%Y', json_value(raw_payload, '$.fechaDesde'))
+        as discount_start_date,
+    parse_date('%d/%m/%Y', json_value(raw_payload, '$.fechaHasta'))
+        as discount_end_date,
 
     -- porcentajeAhorro is a plain number (e.g. 20), normalise to 0..1
     case
-        when NULLIF(TRIM(JSON_VALUE(raw_payload, '$.porcentajeAhorro')), '') is not null
-        then ROUND(
-            SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.porcentajeAhorro')), '') AS NUMERIC) / 100,
-            4
-        )
-        else null
-    end                                                                         as discount_rate,
+        when nullif(
+                trim(json_value(raw_payload, '$.porcentajeAhorro')), ''
+            ) is not null
+            then round(
+                    safe_cast(
+                        nullif(
+                            trim(json_value(raw_payload, '$.porcentajeAhorro')),
+                            ''
+                        ) as numeric
+                    )
+                    / 100,
+                    4
+                )
+    end as discount_rate,
 
-    CAST(NULL AS STRING)                                                        as discount_name,
-    JSON_VALUE(raw_payload, '$.descripcionAdicional')                           as discount_description,
-    JSON_VALUE(raw_payload, '$.legales')                                        as discount_terms_and_conditions,
+    cast(null as string) as discount_name,
+    json_value(raw_payload, '$.descripcionAdicional') as discount_description,
+    json_value(raw_payload, '$.legales') as discount_terms_and_conditions,
     {#  Creates shareable url based on source id, tipoPromocion and merchant name / category name #}
-    CONCAT(
+    concat(
         'https://galicia.ar/personas/buscador-de-promociones?path=/promocion/',
-        JSON_VALUE(raw_payload, '$.source_id'), '|',
-        IF(
-            JSON_VALUE(raw_payload, '$.tipoPromocion') = 'Categoria',
-            CONCAT(JSON_VALUE(raw_payload, '$.categoria.descripcion'),'|categoria|'),
-            CONCAT(JSON_VALUE(raw_payload, '$.marca.nombre'),'|marca|')
+        json_value(raw_payload, '$.source_id'), '|',
+        if(
+            json_value(raw_payload, '$.tipoPromocion') = 'Categoria',
+            concat(
+                json_value(raw_payload, '$.categoria.descripcion'),
+                '|categoria|'
+            ),
+            concat(json_value(raw_payload, '$.marca.nombre'), '|marca|')
         )
-    )                                                                           as discount_url,
+    ) as discount_url,
 
-    SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.topeReintegro')), '') AS NUMERIC)      as discount_max_discount_amount,
-    SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.minimoCompra')), '') AS NUMERIC)      as discount_min_purchase_amount,
-    SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.cuotaSinInteresHasta')), '') AS INT64) as discount_no_interest_installment_qty,
+    safe_cast(
+        nullif(trim(json_value(raw_payload, '$.topeReintegro')), '') as numeric
+    ) as discount_max_discount_amount,
+    safe_cast(
+        nullif(trim(json_value(raw_payload, '$.minimoCompra')), '') as numeric
+    ) as discount_min_purchase_amount,
+    safe_cast(
+        nullif(
+            trim(json_value(raw_payload, '$.cuotaSinInteresHasta')), ''
+        ) as int64
+    ) as discount_no_interest_installment_qty,
 
     -- diasAplicacion: semicolon-separated day abbreviations e.g. "Lu;Ma;Mi"
     -- Convert to a 0-based integer array
-    ARRAY(
+    array(
         select
             case day
                 when 'Lu' then 0
@@ -69,14 +89,21 @@ select
                 when 'Sa' then 5
                 when 'Do' then 6
             end
-        from UNNEST(SPLIT(COALESCE(JSON_VALUE(raw_payload, '$.diasAplicacion'), ''), ';')) as day
-        where day in ('Lu','Ma','Mi','Ju','Vi','Sa','Do')
-    )                                                                           as discount_valid_days_list,
+        from unnest(
+                split(
+                    coalesce(json_value(raw_payload, '$.diasAplicacion'), ''),
+                    ';'
+                )
+            ) as day
+        where day in ('Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do')
+    ) as discount_valid_days_list,
 
-    SAFE_CAST(JSON_VALUE(raw_payload, '$.tiendaOnline') AS BOOL)                as discount_valid_online,
-    SAFE_CAST(JSON_VALUE(raw_payload, '$.tiendaFisica') AS BOOL)                as discount_valid_instore,
+    safe_cast(json_value(raw_payload, '$.tiendaOnline') as bool)
+        as discount_valid_online,
+    safe_cast(json_value(raw_payload, '$.tiendaFisica') as bool)
+        as discount_valid_instore,
 
-    raw_payload                                                                 as discount_metadata,
+    raw_payload as discount_metadata,
     scraped_at_dt
 
 from source
