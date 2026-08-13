@@ -21,3 +21,7 @@ dbt = [
 scripts = [
     "google-cloud-workflows>=1.16.0",
 ]
+dev = [
+    "sqlfluff>=4.3.0",
+    "sqlfluff-templater-dbt>=4.3.0",
+]
