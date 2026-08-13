@@ -41,10 +41,19 @@ select
     CAST(NULL AS STRING)                                                        as discount_name,
     JSON_VALUE(raw_payload, '$.descripcionAdicional')                           as discount_description,
     JSON_VALUE(raw_payload, '$.legales')                                        as discount_terms_and_conditions,
-    CAST(NULL AS STRING)                                                        as discount_url,
+    {#  Creates shareable url based on source id, tipoPromocion and merchant name / category name #}
+    CONCAT(
+        'https://galicia.ar/personas/buscador-de-promociones?path=/promocion/',
+        JSON_VALUE(raw_payload, '$.source_id'), '|',
+        IF(
+            JSON_VALUE(raw_payload, '$.tipoPromocion') = 'Categoria',
+            CONCAT(JSON_VALUE(raw_payload, '$.categoria.descripcion'),'|categoria|'),
+            CONCAT(JSON_VALUE(raw_payload, '$.marca.nombre'),'|marca|')
+        )
+    )                                                                           as discount_url,
 
     SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.topeReintegro')), '') AS NUMERIC)      as discount_max_discount_amount,
-    CAST(NULL AS FLOAT64)                                                       as discount_min_purchase_amount,
+    SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.minimoCompra')), '') AS NUMERIC)      as discount_min_purchase_amount,
     SAFE_CAST(NULLIF(TRIM(JSON_VALUE(raw_payload, '$.cuotaSinInteresHasta')), '') AS INT64) as discount_no_interest_installment_qty,
 
     -- diasAplicacion: semicolon-separated day abbreviations e.g. "Lu;Ma;Mi"
