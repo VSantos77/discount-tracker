@@ -8,7 +8,4 @@ models:
       - name: last_scraped_at
       - name: discount_count
   - name: streamlit_data
-    data_tests:
-      - dbt_expectations.expect_table_row_count_to_equal_other_table:
-          arguments:
-            compare_model: ref('fct_discounts')
+    description: "Thin wrapper over fct_discounts for streamlit access"

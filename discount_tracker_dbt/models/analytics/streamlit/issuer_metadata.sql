@@ -1,9 +1,8 @@
 with discounts as (
     select
-        i.name AS issuer_name,
-        d.last_updated_at_date
-    from {{ ref('fct_discounts') }} d
-    join {{ ref('dim_issuers') }} i on d.issuer_id = i.id
+        issuer_name,
+        last_updated_at_date
+    from {{ ref('fct_discounts') }}
 )
 
 select
