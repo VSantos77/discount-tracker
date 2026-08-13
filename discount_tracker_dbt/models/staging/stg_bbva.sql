@@ -78,7 +78,10 @@ select
     JSON_VALUE(raw_payload, '$.cabecera')                           as discount_name,
     JSON_VALUE(raw_payload, '$.subcabecera')                        as discount_description,
     JSON_VALUE(raw_payload, '$.basesCondiciones')                   as discount_terms_and_conditions,
-    CAST(NULL AS STRING)                                             as discount_url,
+    CONCAT(
+        'https://www.bbva.com.ar/beneficios/beneficio.html?id=',
+        JSON_VALUE(raw_payload, '$.source_id')
+    )                                                               as discount_url,
 
     -- Max discount amount from first beneficio entry
     case
