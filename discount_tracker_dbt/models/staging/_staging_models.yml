@@ -8,6 +8,12 @@ _staging_tests: &staging_tests
           config:
             warn_if: '>1'
             error_if: '>10'
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "discount_rate != 0 or discount_no_interest_installment_qty != 0"
+          config:
+            warn_if: '>1'
+            error_if: '>10'
   columns:
     - name: source_id
       data_tests:
