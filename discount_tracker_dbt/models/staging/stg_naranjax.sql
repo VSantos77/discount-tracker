@@ -5,8 +5,22 @@ with source as (
         scraped_at_dt
     from {{ source('staging', 'raw_discounts') }}
     where spider = 'naranjax'
+),
 
+{# Filter out malformed before parsing records #}
+valid_structure as (
+    select *
+    from source
+    where
+        json_type(json_query(raw_payload, '$.id'))                   is not null
+        and json_type(json_query(raw_payload, '$.commerceName'))     is not null
+        and json_type(json_query(raw_payload, '$.benefitName'))      is not null
+        and json_type(json_query(raw_payload, '$.days'))             is not null
+        and json_type(json_query(raw_payload, '$.benefit'))          is not null
+        and json_type(json_query(raw_payload, '$.promotionDetails')) is not null
+        and json_type(json_query(raw_payload, '$.days.weekdaysApplied')) is not null
 )
+
 
 select
     json_value(raw_payload, '$.id') as source_id,
@@ -21,39 +35,18 @@ select
     parse_date('%d/%m/%Y', json_value(raw_payload, '$.days.dateTo'))
         as discount_end_date,
 
-    -- Exact integer from detail endpoint when available;
-    -- otherwise extract first "N%" pattern from title (e.g. "Hasta 25% off" → 0.25)
+    {# If discountPercentage is null -> discount_rate = 0 #}
     coalesce(
-        case
-            when json_value(
+        round(
+            safe_cast(
+                json_value(
                     raw_payload, '$.benefit.discountPercentage'
-                ) is not null
-                then round(
-                        safe_cast(
-                            json_value(
-                                raw_payload, '$.benefit.discountPercentage'
-                            ) as float64
-                        )
-                        / 100,
-                        4
-                    )
-        end,
-        case
-            when regexp_contains(
-                    json_value(raw_payload, '$.benefitName'),
-                    r'\d+(?:[.,]\d+)?\s*%'
-                )
-                then round(
-                        safe_cast(
-                            regexp_extract(
-                                json_value(raw_payload, '$.benefitName'),
-                                r'(\d+(?:[.,]\d+)?)\s*%'
-                            )
-                            as float64
-                        ) / 100,
-                        4
-                    )
-        end
+                ) as float64
+            )
+            / 100,
+            4
+        ),
+        0
     ) as discount_rate,
 
     json_value(raw_payload, '$.benefitName') as discount_name,
@@ -61,34 +54,45 @@ select
     json_value(raw_payload, '$.legal') as discount_terms_and_conditions,
     json_value(raw_payload, '$.discount_url') as discount_url,
 
-    safe_cast(
-        nullif(json_value(raw_payload, '$.promotionDetails.refundLimit'), '')
-        as float64
+    {# If null then no max discount amount -> 0 #}
+    coalesce(
+        safe_cast(
+            nullif(json_value(raw_payload, '$.promotionDetails.refundLimit'), '')
+            as float64
+        ),
+        0 
     ) as discount_max_discount_amount,
 
-    safe_cast(
-        nullif(
-            json_value(raw_payload, '$.promotionDetails.forPurchasesOver'), ''
-        )
-        as float64
+    {# If null then no min purchase amount -> 0 #}
+    coalesce(
+        safe_cast(
+            nullif(json_value(raw_payload, '$.promotionDetails.forPurchasesOver'),'')
+        as float64),
+        0
     ) as discount_min_purchase_amount,
 
-    -- Installment count: extract N from "N cuotas cero/sin interés" in benefitName
-    case
-        when regexp_contains(
-                json_value(raw_payload, '$.benefitName'),
-                r'(\d+)\s+cuotas?\s+(?:cero|sin)\s+inter'
-            )
-            then safe_cast(
-                    regexp_extract(
-                        json_value(raw_payload, '$.benefitName'),
-                        r'(\d+)\s+cuotas?\s+(?:cero|sin)\s+inter'
-                    )
-                    as int64
+    {# 
+        Installment count: extract N from "N cuotas cero/sin interés" in benefitName
+        If NULL -> 0 
+    #}
+    coalesce(
+        case
+            when regexp_contains(
+                    json_value(raw_payload, '$.benefitName'),
+                    r'(\d+)\s+cuotas?\s+(?:cero|sin)\s+inter'
                 )
-    end as discount_no_interest_installment_qty,
+                then safe_cast(
+                        regexp_extract(
+                            json_value(raw_payload, '$.benefitName'),
+                            r'(\d+)\s+cuotas?\s+(?:cero|sin)\s+inter'
+                        )
+                        as int64
+                    )
+        end,
+        0
+    ) as discount_no_interest_installment_qty,
 
-    -- weekdaysApplied uses 1=Mon..7=Sun; convert to 0-based (0=Mon..6=Sun)
+    {# weekdaysApplied uses 1=Mon..7=Sun; convert to 0-based (0=Mon..6=Sun) #}
     array(
         select safe_cast(json_value(d, '$') as int64) - 1
         from unnest(json_query_array(raw_payload, '$.days.weekdaysApplied'))
@@ -107,9 +111,11 @@ select
             json_value(raw_payload, '$.promotionDetails.appliesInStore') as bool
         ),
         false
+    ) or (
+        ARRAY_LENGTH(JSON_QUERY_ARRAY(raw_payload, '$.commerces')) > 0
     ) as discount_valid_instore,
 
     raw_payload as discount_metadata,
     scraped_at_dt
 
-from source
+from valid_structure
