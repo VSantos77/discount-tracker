@@ -158,10 +158,6 @@ class NaranjaXSpider(scrapy.Spider):
             )
         else:
             detail = response.json()
-            # Drop the list of individual store locations — it can be very large
-            # and isn't useful for the discount data model
-            detail.pop("commerces", None)
-
             yield {
                     'id' : f'{commerce}_{plan}',
                     'discount_url' : response.meta['discount_url'],
