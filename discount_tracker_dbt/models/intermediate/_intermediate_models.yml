@@ -3,6 +3,13 @@ version: 2
 models:
     - name: int_unioned_and_renamed_discounts
       description: "Union of all staging sources. Shared renaming"
+      data_tests:
+        - dbt_utils.expression_is_true:
+            arguments:
+              expression: "discount_rate != 0 or discount_no_interest_installment_qty != 0"
+        - dbt_utils.expression_is_true:
+            arguments:
+              expression: "discount_valid_instore or discount_valid_online"
 
     - name: int_source_deduped_discounts
       description: >
