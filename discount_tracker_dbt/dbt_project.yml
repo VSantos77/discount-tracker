@@ -24,3 +24,9 @@ models:
 seeds:
     discount_tracker_dbt:
         +dataset: dbt_seeds
+
+data_tests:
+    discount_tracker_dbt:
+        source_tests:
+            +warn_if: '>= 1'
+            +error_if: '>= 10'
