@@ -67,17 +67,27 @@ select
     safe_cast(
         nullif(trim(json_value(raw_payload, '$.topeReintegro')), '') as numeric
     ) as discount_max_discount_amount,
-    safe_cast(
+    coalesce(
+        safe_cast(
         nullif(trim(json_value(raw_payload, '$.minimoCompra')), '') as numeric
+        ),
+        0
     ) as discount_min_purchase_amount,
-    safe_cast(
+    
+    {# If null -> 0 #}
+    coalesce(
+        safe_cast(
         nullif(
             trim(json_value(raw_payload, '$.cuotaSinInteresHasta')), ''
         ) as int64
+        ),
+        0 
     ) as discount_no_interest_installment_qty,
 
-    -- diasAplicacion: semicolon-separated day abbreviations e.g. "Lu;Ma;Mi"
-    -- Convert to a 0-based integer array
+    {#  
+        diasAplicacion: semicolon-separated day abbreviations e.g. "Lu;Ma;Mi"
+        Convert to a 0-based integer array 
+    #}
     array(
         select
             case day
@@ -100,8 +110,11 @@ select
 
     safe_cast(json_value(raw_payload, '$.tiendaOnline') as bool)
         as discount_valid_online,
-    safe_cast(json_value(raw_payload, '$.tiendaFisica') as bool)
-        as discount_valid_instore,
+    (
+        safe_cast(json_value(raw_payload, '$.tiendaFisica') as bool)
+        {# Fallback to searching for 'comercios adheridos' in discount description #}
+        or regexp_contains(json_value(raw_payload,'$.leyendaCompra'), '(?i)comercios adheridos')  
+    ) as discount_valid_instore,
 
     raw_payload as discount_metadata,
     scraped_at_dt
