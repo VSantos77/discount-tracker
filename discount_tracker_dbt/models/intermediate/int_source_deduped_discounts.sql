@@ -1,5 +1,5 @@
 with source as (
-    select * from {{ ref('int_unioned_discounts') }}
+    select * from {{ ref('int_unioned_and_renamed_discounts') }}
 ),
 
 with_id as (
@@ -13,5 +13,5 @@ select *
 from with_id
 qualify row_number() over (
     partition by discount_id
-    order by scraped_at_dt desc
+    order by last_updated_at_date desc
 ) = 1

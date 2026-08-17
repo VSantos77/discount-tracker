@@ -9,7 +9,7 @@
 
 with discounts as (
     select *
-    from {{ ref('int_business_deduped_discounts') }}
+    from {{ ref('int_normalized_discounts') }}
     {% if is_incremental() %}
         where last_updated_at_date
             > (select max(last_updated_at_date) from {{ this }})

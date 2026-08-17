@@ -1,5 +1,5 @@
 with discounts as (
-    select * from {{ ref('int_normalized_discounts') }}
+    select * from {{ ref('int_source_deduped_discounts') }}
 ),
 
 discounts_prepared as (
