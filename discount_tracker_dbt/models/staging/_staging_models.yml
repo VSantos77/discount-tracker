@@ -1,11 +1,86 @@
 version: 2
 
+_staging_tests: &staging_tests
+  data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "discount_valid_online or discount_valid_instore"
+          config:
+            warn_if: '>1'
+            error_if: '>10'
+  columns:
+    - name: source_id
+      data_tests:
+        - not_null
+    - name: issuer_name
+      data_tests:
+        - not_null
+    - name: merchant_name
+      data_tests:
+        - not_null
+    - name: merchant_category_name
+      data_tests:
+        - not_null
+    - name: discount_start_date
+      data_tests:
+        - not_null
+    - name: discount_end_date
+      data_tests:
+        - not_null
+    - name: discount_rate
+      data_tests:
+        - not_null
+        - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 1
+    - name: discount_name
+    - name: discount_description
+    - name: discount_terms_and_conditions
+      data_tests:
+        - not_null
+    - name: discount_url
+      data_tests:
+        - not_null
+    - name: discount_max_discount_amount
+      data_tests:
+        - not_null
+        - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+    - name: discount_min_purchase_amount
+      data_tests:
+        - not_null
+        - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+    - name: discount_no_interest_installment_qty
+      data_tests:
+        - not_null
+        - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+    - name: discount_valid_days_list
+      data_tests:
+        - not_null
+        - valid_days_array
+    - name: discount_valid_online
+      data_tests:
+        - not_null
+    - name: discount_valid_instore
+      data_tests:
+        - not_null
+
 models:
   - name: stg_bbva
     description: "Staging model for BBVA discounts"
+    <<: *staging_tests
 
   - name: stg_galicia
     description: "Staging model for Galicia discounts"
+    <<: *staging_tests
 
   - name: stg_naranjax
     description: "Staging model for Naranja X discounts"
+    <<: *staging_tests
+ 
