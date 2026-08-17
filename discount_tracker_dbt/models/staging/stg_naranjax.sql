@@ -77,6 +77,11 @@ select
     #}
     coalesce(
         case
+            {# Custom rule for Plan Z discounts, that allow up to 3 installments with no interest #}
+            when regexp_contains(
+                json_value(raw_payload, '$.benefitName'),
+                '(?i)plan z'
+            ) then 3
             when regexp_contains(
                     json_value(raw_payload, '$.benefitName'),
                     r'(\d+)\s+cuotas?\s+(?:cero|sin)\s+inter'
