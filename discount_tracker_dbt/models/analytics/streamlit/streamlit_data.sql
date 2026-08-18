@@ -23,7 +23,7 @@ select
     valid_days_list as discount_valid_days_list,
     valid_online as discount_valid_online,
     valid_instore as discount_valid_instore,
-    metadata as discount_metadata,
+    payment_methods_list as discount_payment_methods_list,
     last_updated_at_date
 from
     discounts
