@@ -116,6 +116,9 @@ select
         or regexp_contains(json_value(raw_payload,'$.leyendaCompra'), '(?i)comercios adheridos')  
     ) as discount_valid_instore,
 
+    {# Returns an array of json objects containing payment method type and network/tier #}
+    coalesce(json_query_array(raw_payload, '$.mediosDePago'), []) as discount_payment_methods_list,
+
     raw_payload as discount_metadata,
     scraped_at_dt
 
