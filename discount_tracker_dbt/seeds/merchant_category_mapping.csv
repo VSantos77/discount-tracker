@@ -1,37 +1,48 @@
-﻿raw_category,clean_category
-Automotores,Vehículos
-Vehículos,Vehículos
-Bares,Gastronomía
-Confitería,Gastronomía
-Gastronomía,Gastronomía
-Combustible,Combustible
-Mascotas,Salud y Bienestar
-Salud y Bienestar,Salud y Bienestar
-Peluquerías,Belleza
-Belleza,Belleza
-Supermercados,Supermercados
-Regalos,Cultura y Libros
-Librerías,Cultura y Libros
-Entretenimiento,Entretenimiento y Deportes
-Deportes,Entretenimiento y Deportes
-Juguetes,Entretenimiento y Deportes
-Jugueterías,Entretenimiento y Deportes
-Viajes,Viajes y Transporte
-Transportes,Viajes y Transporte
-Electrónica,Tecnología
-Electro y Tecnología,Tecnología
-Hogar,Hogar y Deco
-Hogar y Deco,Hogar y Deco
-Indumentaria,Moda y Shopping
-Moda,Moda y Shopping
-Shopping,Moda y Shopping
-Otros,Otros
-Otros comercios y servicios,Otros
-Construcción,Construcción
-Moda y accesorios,Moda y Shopping
-Autos y motos,Vehículos
-Servicios,Servicios
-Juguetería,Entretenimiento y Deportes
-Alimentos,Gastronomía
-Viajes y turismo,Viajes y Transporte
-Educación,Cultura y Libros
+﻿issuer,raw_merchant_category_name,parsed_merchant_category_name
+Naranja X,Viajes y turismo,Viajes y turismo
+Naranja X,Supermercados,Supermercados
+Naranja X,Servicios,Otros
+Naranja X,Salud y bienestar,Salud y belleza
+Naranja X,Otros,Otros
+Naranja X,Moda y accesorios,Moda e indumentaria
+Naranja X,Mascotas,Otros
+Naranja X,Librerías,Otros
+Naranja X,Juguetería,Juguetería y deportes
+Naranja X,Hogar y deco,Hogar y decoración
+Naranja X,Gastronomía,Gastronomía
+Naranja X,Entretenimiento,Entretenimiento
+Naranja X,Electro y tecnología,Electrónica y tecnología
+Naranja X,Deportes,Juguetería y deportes
+Naranja X,Construcción,Vehículos y combustible
+Naranja X,Autos y motos,Vehículos y combustible
+Naranja X,Alimentos,Supermercados
+Banco Galicia,Viajes,Viajes y turismo
+Banco Galicia,Vehículos,Vehículos y combustible
+Banco Galicia,Transportes,Otros
+Banco Galicia,Supermercados,Supermercados
+Banco Galicia,Salud y Bienestar,Salud y belleza
+Banco Galicia,Peluquerías,Salud y belleza
+Banco Galicia,Otros,Otros
+Banco Galicia,Mascotas,Otros
+Banco Galicia,Librerías,Otros
+Banco Galicia,Juguetes,Juguetería y deportes
+Banco Galicia,Indumentaria,Moda e indumentaria
+Banco Galicia,Hogar,Hogar y decoración
+Banco Galicia,Gastronomía,Gastronomía
+Banco Galicia,Entretenimiento,Entretenimiento
+Banco Galicia,Electrónica,Electrónica y tecnología
+Banco Galicia,Confitería,Gastronomía
+Banco Galicia,Combustible,Vehículos y combustible
+Banco Galicia,Bares,Gastronomía
+Banco BBVA,Viajes,Viajes y turismo
+Banco BBVA,Regalos,Otros
+Banco BBVA,Otros comercios y servicios,Otros
+Banco BBVA,Moda,Moda e indumentaria
+Banco BBVA,Jugueterías,Juguetería y deportes
+Banco BBVA,Hogar y Deco,Hogar y decoración
+Banco BBVA,Gastronomía,Gastronomía
+Banco BBVA,Entretenimiento,Entretenimiento
+Banco BBVA,Electro y Tecnología,Electrónica y tecnología
+Banco BBVA,Deportes,Juguetería y deportes
+Banco BBVA,Belleza,Salud y belleza
+Banco BBVA,Automotores,Vehículos y combustible
