@@ -5,7 +5,23 @@ with discounts as (
 discounts_prepared as (
     select
         *,
-        ARRAY_TO_STRING(ARRAY(SELECT CAST(x AS STRING) FROM UNNEST(discount_valid_days_list) AS x), ',') as discount_valid_days_list_str
+        {# Convert to string representations to pass to generate surrogate key func #}
+        array_to_string(
+            array(
+                select cast(x as string)
+                from unnest(discount_valid_days_list) as x
+                order by x
+            ),
+            ','
+        ) as discount_valid_days_list_str,
+        array_to_string(
+            array(
+                select to_json_string(x)
+                from unnest(discount_payment_methods_list) as x
+                order by to_json_string(x)
+            ),
+            ','
+        ) as discount_payment_methods_list_str
     from discounts
 ),
 
@@ -28,9 +44,10 @@ discounts_with_surrogate_key as (
             'discount_no_interest_installment_qty',
             'discount_valid_days_list_str',
             'discount_valid_online',
-            'discount_valid_instore'
+            'discount_valid_instore',
+            'discount_payment_methods_list_str'
         ])}} AS discount_content_hash,
-        * except(discount_valid_days_list_str)
+        * except(discount_valid_days_list_str, discount_payment_methods_list_str)
     from discounts_prepared
 ),
 
