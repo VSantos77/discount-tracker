@@ -439,10 +439,10 @@ def page_guided_search():
 
     merchant_options = sorted(filtered_df["merchant_name"].dropna().unique())
     with rf_col2:
-        selected_result_merchant = st.selectbox(
+        selected_result_merchant = st.multiselect(
             "Filtrar por comercio",
             options=merchant_options,
-            index=None,
+            default=[],
             placeholder="Todos los comercios",
             key="guided_result_merchant_select",
         )
@@ -480,7 +480,7 @@ def page_guided_search():
 
     if selected_result_merchant:
         filtered_df = filtered_df[
-            filtered_df["merchant_name"] == selected_result_merchant
+            filtered_df["merchant_name"].isin(selected_result_merchant)
         ]
 
     if selected_result_formato:
