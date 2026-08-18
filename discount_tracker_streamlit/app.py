@@ -20,6 +20,8 @@ CACHE_DATA_STR = "Cargando datos... Esto puede demorar unos segundos."
 BASE_DIR = Path(__file__).resolve().parent
 ICONS_DIR = BASE_DIR / "utils" / "icons"
 ICONS_MAPPING_FILE = BASE_DIR / "utils" / "issuer_icon_mapping.csv"
+LOGO_FILE = BASE_DIR / "utils" / "logo.png"
+LOGO_SIZE = 350
 
 # Page Configuration
 st.set_page_config(
@@ -27,6 +29,8 @@ st.set_page_config(
     page_icon="💸",
     layout="wide"
 )
+
+st.logo(str(LOGO_FILE), size='large')
 
 def load_query(query_file):
     with open(BASE_DIR / "utils" / "queries" / query_file, "r") as f:
@@ -114,18 +118,37 @@ def map_days(days_str):
     except:
         return []
 
+DAY_ORDER = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+DAY_FULL_NAMES = {
+    'Lun': 'Lunes',
+    'Mar': 'Martes',
+    'Mié': 'Miércoles',
+    'Jue': 'Jueves',
+    'Vie': 'Viernes',
+    'Sáb': 'Sábado',
+    'Dom': 'Domingo',
+}
+
+def format_valid_days(valid_days_list):
+    """Build the 'Días válidos' display string: 'Todos' if every day is valid, else full day names."""
+    if not valid_days_list:
+        return "-"
+    if set(valid_days_list) >= set(DAY_ORDER):
+        return "Todos"
+    return ", ".join(DAY_FULL_NAMES[day] for day in DAY_ORDER if day in valid_days_list)
+
 def get_validity(row):
     """Determine where discount is valid."""
     online = row.get('discount_valid_online', False)
     instore = row.get('discount_valid_instore', False)
     if online and instore:
-        return "Online y en Tienda"
+        return "Online y Presencial"
     elif online:
         return "Solo Online"
     elif instore:
-        return "Solo en Tienda"
+        return "Solo Presencial"
     else:
-        return "Desconocido"
+        return "Ver legales"
 
 
 def format_discount_fields(row):
@@ -162,8 +185,8 @@ def format_display_value(value, suffix=""):
 
 
 PAYMENT_METHOD_TYPE_LABELS = {
-    'credit_card': 'Crédito',
-    'debit_card': 'Débito',
+    'credit_card': 'Tarjeta de crédito',
+    'debit_card': 'Tarjeta de débito',
     'account_money': 'Dinero en cuenta',
 }
 
@@ -206,9 +229,75 @@ def format_payment_methods(payment_methods_list):
     return ", ".join(labels) if labels else "-"
 
 
+def extract_payment_method_types(payment_methods_list):
+    """Return the distinct payment method type labels (e.g. 'Tarjeta de crédito') present in a discount's payment methods array."""
+    if payment_methods_list is None or (hasattr(payment_methods_list, '__len__') and len(payment_methods_list) == 0):
+        return []
+    types = []
+    for entry in payment_methods_list:
+        raw_type = entry.get('type') if isinstance(entry, dict) else None
+        type_label = PAYMENT_METHOD_TYPE_LABELS.get(raw_type, raw_type or '')
+        if type_label and type_label not in types:
+            types.append(type_label)
+    return types
+
+
+def format_payment_methods_grouped_html(payment_methods_list):
+    """Build an HTML 'Métodos de pago' string, grouped by type with bolded type labels.
+
+    Returns HTML (a bold <strong> type label per group, with card_network/card_tier
+    combos for that type in parentheses) — the caller must render it with
+    unsafe_allow_html=True and must NOT re-escape the returned string, since the
+    dynamic parts are already escaped here and only the surrounding <strong> tags
+    (literal, not derived from data) are unescaped markup.
+    """
+    if payment_methods_list is None or (hasattr(payment_methods_list, '__len__') and len(payment_methods_list) == 0):
+        return "-"
+
+    group_order = []
+    group_details = {}
+    for entry in payment_methods_list:
+        if not isinstance(entry, dict):
+            continue
+        raw_type = entry.get('type')
+        type_label = PAYMENT_METHOD_TYPE_LABELS.get(raw_type, raw_type or '')
+        if not type_label:
+            continue
+        if type_label not in group_details:
+            group_details[type_label] = []
+            group_order.append(type_label)
+
+        details = []
+        for field in ('card_network', 'card_tier'):
+            value = entry.get(field)
+            if _is_missing_payment_field(value):
+                continue
+            label = 'Todas' if value == 'all' else str(value)
+            if label not in details:
+                details.append(label)
+        detail_str = " ".join(details)
+        if detail_str and detail_str not in group_details[type_label]:
+            group_details[type_label].append(detail_str)
+
+    if not group_order:
+        return "-"
+
+    parts = []
+    for type_label in group_order:
+        escaped_type = f"<strong>{escape(type_label)}</strong>"
+        details = group_details[type_label]
+        if details:
+            escaped_details = ", ".join(escape(d) for d in details)
+            parts.append(f"{escaped_type} ({escaped_details})")
+        else:
+            parts.append(escaped_type)
+    return ", ".join(parts)
+
+
 # --- PAGE: ISSUER STATUS ---
 def page_issuer_status():
-    st.title("Entidades disponibles")
+    st.image(str(LOGO_FILE), width=LOGO_SIZE)
+    st.subheader("Entidades disponibles")
 
     metadata_df = load_issuer_metadata()
     icon_mapping = load_issuer_icon_mapping()
@@ -217,13 +306,20 @@ def page_issuer_status():
     metadata_df["last_scraped_at"] = pd.to_datetime(metadata_df["last_scraped_at"], errors="coerce")
     metadata_df["discount_count"] = pd.to_numeric(metadata_df["discount_count"], errors="coerce").fillna(0).astype(int)
 
-    latest_scrape = metadata_df["last_scraped_at"].max()
-    latest_scrape_label = latest_scrape.strftime("%d/%m/%Y %H:%M") if pd.notna(latest_scrape) else "N/A"
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Entidades Activas", len(metadata_df))
-    col2.metric("Total Descuentos", int(metadata_df["discount_count"].sum()))
-    col3.metric("Última Actualización", latest_scrape_label)
+    summary_cards = [
+        ("Entidades Activas", len(metadata_df)),
+        ("Total Descuentos", int(metadata_df["discount_count"].sum())),
+    ]
+    for col, (label, value) in zip(st.columns(2), summary_cards):
+        col.markdown(
+            f"""
+            <div style="background-color:#00A36C; border-radius:10px; padding:16px; text-align:center;">
+                <div style="font-size:0.9rem; color:#FFFFFF;">{escape(label)}</div>
+                <div style="font-size:2rem; font-weight:700; color:#FFFFFF; line-height:1.1;">{value}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.divider()
 
@@ -250,110 +346,31 @@ def page_issuer_status():
                 st.metric("Descuentos", int(row.get("discount_count", 0)))
 
 
-# --- PAGE: DISCOUNT DASHBOARD ---
-def page_dashboard():
-    st.title("Dashboard")
-    st.markdown("Resumen general de los descuentos disponibles.")
-
-    chart_font_color = "#1A202C"
-    chart_background = "#FFFFFF"
-    chart_grid = "#DDEBE4"
-    issuer_palette = ["#00A36C", "#34B885", "#67CDA2", "#9AE1BF", "#CDEFD9"]
-    category_scale = ["#DDF1E8", "#A7DEC5", "#67CDA2", "#34B885", "#00A36C"]
-
-    df = load_discount_data()
-
-    # Summary metrics
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Descuentos", len(df))
-    col2.metric("Emisores", df['issuer_name'].nunique())
-    col3.metric("Categorías", df['merchant_category_name'].nunique())
-    col4.metric("Comercios", df['merchant_name'].nunique())
-
-    st.divider()
-
-    col_left, col_right = st.columns(2)
-
-    # Chart 1: Discounts by issuer
-    by_issuer = (
-        df['issuer_name']
-        .value_counts()
-        .reset_index()
-        .rename(columns={'issuer_name': 'Emisor', 'count': 'Cantidad'})
-    )
-    fig_issuer = px.bar(
-        by_issuer,
-        x='Emisor',
-        y='Cantidad',
-        color='Emisor',
-        color_discrete_sequence=issuer_palette,
-        labels={'Cantidad': 'Número de descuentos'},
-    )
-    fig_issuer.update_layout(
-        showlegend=False,
-        paper_bgcolor=chart_background,
-        plot_bgcolor=chart_background,
-        font=dict(color=chart_font_color),
-        xaxis=dict(title=None, gridcolor=chart_grid),
-        yaxis=dict(gridcolor=chart_grid),
-    )
-    with col_left:
-        st.subheader("Descuentos por Emisor")
-        st.plotly_chart(fig_issuer, use_container_width=True)
-
-    # Chart 2: Discounts by category
-    by_category = (
-        df['merchant_category_name']
-        .value_counts()
-        .reset_index()
-        .rename(columns={'merchant_category_name': 'Categoría', 'count': 'Cantidad'})
-        .sort_values('Cantidad')
-    )
-    fig_category = px.bar(
-        by_category,
-        x='Cantidad',
-        y='Categoría',
-        orientation='h',
-        color='Cantidad',
-        color_continuous_scale=category_scale,
-        labels={'Cantidad': 'Número de descuentos'},
-    )
-    fig_category.update_layout(
-        height=max(400, len(by_category) * 28),
-        coloraxis_showscale=False,
-        paper_bgcolor=chart_background,
-        plot_bgcolor=chart_background,
-        font=dict(color=chart_font_color),
-        xaxis=dict(gridcolor=chart_grid),
-        yaxis=dict(title=None, gridcolor=chart_grid),
-    )
-    with col_right:
-        st.subheader("Descuentos por Categoría")
-        st.plotly_chart(fig_category, use_container_width=True)
-
-
 # --- PAGE: GUIDED SEARCH ---
 def page_guided_search():
-    st.title("Explorar descuentos")
+    st.image(str(LOGO_FILE), width=LOGO_SIZE)
 
     df = load_discount_data()
     icon_mapping = load_issuer_icon_mapping()
 
     df = df.copy()
     df["valid_days_names"] = df["discount_valid_days_list"].apply(map_days)
+    df["formato"] = df.apply(get_validity, axis=1)
+    df["payment_method_types"] = df["discount_payment_methods_list"].apply(extract_payment_method_types)
 
     st.subheader("¿Dónde querés comprar?")
     merchant_col, category_col = st.columns(2)
     with merchant_col:
         merchant_query = st.text_input(
-            "Nombre del comercio",
+            "Buscar por nombre del comercio",
             placeholder="Ej: Coto, Starbucks, Carrefour...",
             key="guided_merchant_query",
         ).strip()
+
     with category_col:
         category_options = sorted(df["merchant_category_name"].dropna().unique())
         selected_category = st.selectbox(
-            "Categoría",
+            "Buscar por categoría",
             options=category_options,
             index=None,
             placeholder="Todas las categorías",
@@ -375,6 +392,7 @@ def page_guided_search():
 
     prefiltered_df = df[pre_mask].copy()
     issuer_options = sorted(prefiltered_df["issuer_name"].dropna().unique())
+    
     selected_issuers = st.multiselect(
         "Emisores a considerar",
         label_visibility="hidden",
@@ -399,8 +417,8 @@ def page_guided_search():
         unsafe_allow_html=True,
     )
 
-    day_order = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-    rf_col1, rf_col2, rf_col3, rf_col4 = st.columns(4)
+    day_order = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    rf_col1, rf_col2, rf_col3, rf_col4, rf_col5, rf_col6 = st.columns(6)
     with rf_col1:
         selected_result_days = st.multiselect(
             "Filtrar por día de validez",
@@ -428,19 +446,53 @@ def page_guided_search():
             placeholder="Todos los comercios",
             key="guided_result_merchant_select",
         )
+    formato_options = sorted(filtered_df["formato"].dropna().unique())
     with rf_col3:
+        selected_result_formato = st.selectbox(
+            "Filtrar por formato",
+            options=formato_options,
+            index=None,
+            placeholder="Todos los formatos",
+            key="guided_result_formato_select",
+        )
+    payment_method_type_options = sorted({
+        payment_type
+        for types in filtered_df["payment_method_types"]
+        for payment_type in types
+    })
+    with rf_col4:
+        selected_payment_method_types = st.multiselect(
+            "Filtrar por método de pago",
+            options=payment_method_type_options,
+            default=[],
+            placeholder="Todos los métodos",
+            key="guided_result_payment_method_types",
+        )
+    with rf_col5:
         result_order_by = st.selectbox(
             "Ordenar por",
             options=["Descuento más grande", "Más cuotas sin interés"],
             index=0,
             key="guided_result_order_by",
         )
-    with rf_col4:
+    with rf_col6:
         show_inactive = st.toggle("Incluir vencidos", value=False, key="guided_show_inactive")
 
     if selected_result_merchant:
         filtered_df = filtered_df[
             filtered_df["merchant_name"] == selected_result_merchant
+        ]
+
+    if selected_result_formato:
+        filtered_df = filtered_df[
+            filtered_df["formato"] == selected_result_formato
+        ]
+
+    if selected_payment_method_types:
+        filtered_df = filtered_df[
+            filtered_df["payment_method_types"].apply(
+                lambda types: any(t in types for t in selected_payment_method_types)
+            )
         ]
 
     order_column = "discount_rate" if result_order_by == "Descuento más grande" else "discount_no_interest_installment_qty"
@@ -458,6 +510,8 @@ def page_guided_search():
         tuple(sorted(selected_issuers)),
         tuple(selected_result_days),
         selected_result_merchant,
+        selected_result_formato,
+        tuple(sorted(selected_payment_method_types)),
         result_order_by,
         show_inactive,
     )
@@ -475,138 +529,123 @@ def page_guided_search():
         st.info("No hay descuentos que coincidan con la búsqueda y emisores seleccionados.")
         return
 
-    visible_rows = list(visible_df.iterrows())
-    for start_idx in range(0, len(visible_rows), 3):
-        row_cols = st.columns(3)
-        for col_idx, (_, row) in enumerate(visible_rows[start_idx:start_idx + 3]):
-            with row_cols[col_idx]:
-                issuer_name = str(row.get("issuer_name", ""))
-                issuer_key = normalize_issuer_key(issuer_name)
-                icon_filename = icon_mapping.get(issuer_key)
-                icon_path = ICONS_DIR / icon_filename if icon_filename else None
-                icon_base64 = get_base64_icon(str(icon_path)) if icon_path and icon_path.exists() else None
-                icon_html = (
-                    f"<img src=\"data:image/png;base64,{icon_base64}\" alt=\"{escape(issuer_name)}\" style=\"height:22px; width:auto; max-width:88px; object-fit:contain;\"/>"
-                    if icon_base64
-                    else ""
+    column_widths = [0.7, 1.0, 1.1, 1.0, 0.7, 0.9, 1.0, 0.8, 0.8, 1.5, 0.7, 0.7, 0.7]
+    column_headers = [
+        "Entidad", "Comercio", "Categoría", "Descuento", "Cuotas s/int.",
+        "Formato", "Vigencia", "Compra mínima", "Tope",
+        "Métodos de pago", "Días válidos", "T&C", "Ir al sitio web",
+    ]
+    st.markdown(
+        """
+        <style>
+        div[class*="st-key-guided_v2_header"] {
+            background-color: #00A36C;
+            border-radius: 8px;
+            padding: 16px 10px;
+            margin-bottom: 6px;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+        }
+        div[class*="st-key-guided_v2_header"] p {
+            color: #F5F5F5 !important;
+            margin: 0;
+        }
+        div[class*="st-key-guided_v2_top_row"] {
+            border-color: #D4AF37 !important;
+            background-color: rgba(212,175,55,0.14) !important;
+        }
+        div[class*="st-key-guided_v2_header"] div[data-testid="stColumn"]:not(:last-child) {
+            border-right: 1px solid rgba(245,245,245,0.35);
+        }
+        div[class*="st-key-guided_v2_top_row"] div[data-testid="stColumn"]:not(:last-child),
+        div[class*="st-key-guided_v2_row_"] div[data-testid="stColumn"]:not(:last-child) {
+            border-right: 1px solid #E2E8F0;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.container(key="guided_v2_header"):
+        header_cols = st.columns(column_widths)
+        for header_col, header in zip(header_cols, column_headers):
+            header_col.markdown(f"**{header}**")
+
+    for row_idx, (_, row) in enumerate(visible_df.iterrows()):
+        issuer_name = str(row.get("issuer_name", ""))
+        issuer_key = normalize_issuer_key(issuer_name)
+        icon_filename = icon_mapping.get(issuer_key)
+        icon_path = ICONS_DIR / icon_filename if icon_filename else None
+        icon_base64 = get_base64_icon(str(icon_path)) if icon_path and icon_path.exists() else None
+        icon_html = (
+            f"<img src=\"data:image/png;base64,{icon_base64}\" alt=\"{escape(issuer_name)}\" style=\"height:28px; width:auto; max-width:60px; object-fit:contain;\"/>"
+            if icon_base64
+            else ""
+        )
+
+        start_date = pd.to_datetime(row["discount_start_date"]).strftime("%d/%m/%Y") if pd.notna(row["discount_start_date"]) else "N/A"
+        end_date = pd.to_datetime(row["discount_end_date"]).strftime("%d/%m/%Y") if pd.notna(row["discount_end_date"]) else "N/A"
+        validity = get_validity(row)
+        discount_rate, installments_value, min_purchase_value, max_discount_value = format_discount_fields(row)
+        payment_methods_html = format_payment_methods_grouped_html(row.get("discount_payment_methods_list"))
+        valid_days_list = map_days(row.get("discount_valid_days_list"))
+        days_display = format_valid_days(valid_days_list)
+
+        is_active = row.get('discount_is_active', True)
+        row_text_color = "#1A202C" if is_active else "#9CA3AF"
+        discount_color = "#00A36C" if is_active else "#9CA3AF"
+
+        row_container = (
+            st.container(border=True, key="guided_v2_top_row")
+            if row_idx == 0
+            else st.container(border=True, key=f"guided_v2_row_{row_idx}")
+        )
+        with row_container:
+            row_cols = st.columns(column_widths)
+            row_cols[0].markdown(icon_html, unsafe_allow_html=True)
+            row_cols[1].markdown(
+                f"<span style='color:{row_text_color}; font-weight:700;'>{escape(str(row.get('merchant_name', 'N/A')))}</span>",
+                unsafe_allow_html=True,
+            )
+            row_cols[2].markdown(
+                f"<span style='color:{row_text_color};'>{escape(str(row.get('merchant_category_name', 'N/A')))}</span>",
+                unsafe_allow_html=True,
+            )
+            row_cols[3].markdown(
+                f"<span style='color:{discount_color}; font-weight:700;'>{escape(format_display_value(discount_rate, ' OFF'))}</span>",
+                unsafe_allow_html=True,
+            )
+            remaining_values = [
+                installments_value,
+                validity,
+                f"{start_date} a {end_date}",
+                min_purchase_value,
+                max_discount_value,
+            ]
+            for row_col, value in zip(row_cols[4:9], remaining_values):
+                row_col.markdown(
+                    f"<span style='color:{row_text_color};'>{escape(str(value))}</span>",
+                    unsafe_allow_html=True,
                 )
+            row_cols[9].markdown(
+                f"<span style='color:{row_text_color};'>{payment_methods_html}</span>",
+                unsafe_allow_html=True,
+            )
+            row_cols[10].markdown(
+                f"<span style='color:{row_text_color};'>{escape(str(days_display))}</span>",
+                unsafe_allow_html=True,
+            )
 
-                start_date = pd.to_datetime(row["discount_start_date"]).strftime("%d/%m/%Y") if pd.notna(row["discount_start_date"]) else "N/A"
-                end_date = pd.to_datetime(row["discount_end_date"]).strftime("%d/%m/%Y") if pd.notna(row["discount_end_date"]) else "N/A"
-                validity = get_validity(row)
-                discount_rate, installments_value, min_purchase_value, max_discount_value = format_discount_fields(row)
-                payment_methods_value = format_payment_methods(row.get("discount_payment_methods_list"))
-                valid_days_list = map_days(row.get("discount_valid_days_list"))
-                day_badges = [
-                    ("Lun", "L"),
-                    ("Mar", "M"),
-                    ("Mié", "M"),
-                    ("Jue", "J"),
-                    ("Vie", "V"),
-                    ("Sáb", "S"),
-                    ("Dom", "D"),
-                ]
-
-                is_active = row.get('discount_is_active', True)
-                if is_active:
-                    c_primary     = '#00A36C'
-                    c_bg          = 'rgba(0,163,108,0.12)'
-                    c_content     = '#F0F7F4'
-                    c_border      = 'rgba(0,163,108,0.25)'
-                    c_text        = '#1A202C'
-                    c_day_on      = '#00A36C'
-                    c_day_off     = '#DDEBE4'
-                    c_day_on_txt  = '#FFFFFF'
-                    c_day_off_txt = '#607081'
-                else:
-                    c_primary     = '#9CA3AF'
-                    c_bg          = 'rgba(156,163,175,0.12)'
-                    c_content     = '#F3F4F6'
-                    c_border      = 'rgba(156,163,175,0.25)'
-                    c_text        = '#6B7280'
-                    c_day_on      = '#9CA3AF'
-                    c_day_off     = '#E5E7EB'
-                    c_day_on_txt  = '#FFFFFF'
-                    c_day_off_txt = '#9CA3AF'
-
-                with st.container(border=True):
-                    st.markdown(
-                        f"""
-                        <div style="background-color:{c_bg}; border-radius:10px 10px 0 0; padding:4px 12px; margin:-0.95rem -0.95rem 0 -0.95rem; color:{c_primary}; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:34px;">
-                            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{escape(str(row.get('merchant_category_name', 'N/A')))}</span>
-                            <span style="display:inline-flex; align-items:center; justify-content:flex-end; min-width:24px;">{icon_html}</span>
-                        </div>
-                        <div style="background-color:{c_content}; padding:10px 12px; margin:0 -0.95rem 0.75rem -0.95rem; height:5.5rem; display:flex; align-items:center;">
-                            <h3 style="margin:0; color:{c_text}; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{escape(str(row.get('merchant_name', 'N/A')))}</h3>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    h1, h2 = st.columns(2)
-                    h1.markdown(
-                        f"""
-                            <div style="background-color:{c_content}; border:1px solid {c_border}; border-radius:10px; padding:8px 10px; text-align:center;">
-                            <div style=\"font-size:0.85rem; color:{c_text};\">Descuento</div>
-                            <div style=\"font-size:1.8rem; font-weight:700; color:{c_primary}; line-height:1.1;\">{format_display_value(discount_rate, ' OFF')}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    h2.markdown(
-                        f"""
-                            <div style="background-color:{c_content}; border:1px solid {c_border}; border-radius:10px; padding:8px 10px; text-align:center;">
-                            <div style=\"font-size:0.85rem; color:{c_text};\">Cuotas sin interes</div>
-                            <div style=\"font-size:1.8rem; font-weight:700; color:{c_primary}; line-height:1.1;\">{installments_value}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.text('') # buffer
-                    detail_rows = [
-                        ("Emisor", row['issuer_name']),
-                        ("Formato", validity),
-                        ("Validez", f"{start_date} a {end_date}"),
-                        ("Compra Mínima", min_purchase_value),
-                        ("Tope", max_discount_value),
-                        ("Métodos de pago", payment_methods_value),
-                    ]
-                    detail_rows_html = "".join(
-                        f"""
-                        <div style=\"display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin:0.25rem 0;\">
-                            <span style=\"font-weight:600; color:{c_text};\">{escape(str(label))}:</span>
-                            <span style=\"text-align:right; color:{c_text};\">{escape(str(value))}</span>
-                        </div>
-                        """
-                        for label, value in detail_rows
-                    )
-                    st.markdown(detail_rows_html, unsafe_allow_html=True)
-
-                    day_circles_html = "".join(
-                        f"""
-                        <span title=\"{escape(day_name)}\" style=\"width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:600; background:{c_day_on if day_name in valid_days_list else c_day_off}; color:{c_day_on_txt if day_name in valid_days_list else c_day_off_txt};\">{day_short}</span>
-                        """
-                        for day_name, day_short in day_badges
-                    )
-                    st.markdown(
-                        f"""
-                        <div style=\"display:flex; justify-content:space-between; align-items:center; gap:12px; margin:0.35rem 0 0.15rem 0;\">
-                            <span style=\"font-weight:600; color:{c_text};\">Días Válidos:</span>
-                            <div style=\"display:flex; gap:6px;\">{day_circles_html}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-                    bottom_col1, bottom_col2 = st.columns([0.6,0.4])
-
-                    with bottom_col1:
-                        with st.popover("📋 Términos y Condiciones"):
-                            if pd.notna(row.get("discount_terms_and_conditions")) and str(row.get("discount_terms_and_conditions")).strip() != "":
-                                st.text(str(row.get("discount_terms_and_conditions")))
-                            else:
-                                st.text("No hay términos y condiciones disponibles.")
-                    with bottom_col2:
-                        st.link_button('Ir al descuento', row.get('discount_url'), width='stretch')
+            with row_cols[11]:
+                with st.popover("📋"):
+                    tc = row.get("discount_terms_and_conditions")
+                    if pd.notna(tc) and str(tc).strip() != "":
+                        st.text(str(tc))
+                    else:
+                        st.text("No hay términos y condiciones disponibles.")
+            with row_cols[12]:
+                st.link_button("🔗", row.get('discount_url'), help="Ir al descuento", width='stretch')
 
     if shown_count < len(filtered_df):
         if st.button("Cargar más descuentos", key="guided_load_more"):
@@ -614,270 +653,9 @@ def page_guided_search():
             st.rerun()
 
 
-# --- PAGE: DISCOUNT EXPLORER ---
-def page_explorer():
-    st.title("Explorador de descuentos")
-    st.markdown("Explora los descuentos disponibles. Usá el panel de la izquierda para filtrar resultados")
-    day_order = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-
-    df = load_discount_data()
-    icon_mapping = load_issuer_icon_mapping()
-
-    df = df.copy()
-    df["valid_days_names"] = df["discount_valid_days_list"].apply(map_days)
-
-    # Sidebar Filters
-    st.sidebar.header("Filtros")
-
-    search_query = st.sidebar.text_input("Por nombre de comercio", placeholder="ej. Coto, Starbucks...")
-
-    banks = sorted(df['issuer_name'].unique())
-    selected_banks = st.sidebar.multiselect("Por emisor del descuento", banks, default=banks)
-
-    categories = sorted(df['merchant_category_name'].unique())
-    selected_cats = st.sidebar.multiselect("Por categoría", categories, default=categories)
-
-    selected_days = st.sidebar.multiselect(
-        "Por día de validez",
-        options=day_order,
-        default=[],
-        placeholder="Seleccionar días..."
-    )
-
-    st.sidebar.divider()
-    st.sidebar.header("Ordenar resultados")
-    sort_by = st.sidebar.selectbox(
-        "Ordenar por",
-        options=["% Descuento", "Nombre del Comercio", "Emisor"],
-        index=0
-    )
-    sort_order = st.sidebar.radio(
-        "Orden",
-        options=["Mayor a Menor", "Menor a Mayor"],
-        index=0
-    )
-
-    # Filtering
-    mask = (
-        df['issuer_name'].isin(selected_banks) &
-        df['merchant_category_name'].isin(selected_cats)
-    )
-    if search_query:
-        mask = mask & df['merchant_name'].str.contains(search_query, case=False)
-    if selected_days:
-        mask = mask & df['valid_days_names'].apply(lambda days: any(day in days for day in selected_days))
-
-    filtered_df = df[mask]
-
-    sort_column_map = {
-        "% Descuento": "discount_rate",
-        "Nombre del Comercio": "merchant_name",
-        "Emisor": "issuer_name"
-    }
-    sort_ascending = sort_order == "Menor a Mayor"
-    filtered_df = filtered_df.sort_values(
-        by=sort_column_map[sort_by],
-        ascending=sort_ascending
-    ).reset_index(drop=True)
-
-    col1, col2 = st.columns(2)
-    col1.metric("Total de Descuentos", len(filtered_df))
-
-    st.divider()
-
-    if filtered_df.empty:
-        st.info("Ningún descuento coincide con tus filtros.")
-        return
-
-    items_per_page = 20
-    total_items = len(filtered_df)
-    total_pages = (total_items + items_per_page - 1) // items_per_page
-
-    if "explorer_page" not in st.session_state:
-        st.session_state["explorer_page"] = 1
-    st.session_state["explorer_page"] = max(1, min(st.session_state["explorer_page"], total_pages))
-    current_page = st.session_state["explorer_page"]
-
-    def get_visible_pages(page, total):
-        if total <= 7:
-            return list(range(1, total + 1))
-        if page <= 4:
-            return [1, 2, 3, 4, 5, "...", total]
-        if page >= total - 3:
-            return [1, "...", total - 4, total - 3, total - 2, total - 1, total]
-        return [1, "...", page - 1, page, page + 1, "...", total]
-
-    target_page = current_page
-    visible_pages = get_visible_pages(current_page, total_pages)
-
-    _, pager_col, _ = st.columns([2.0, 4.0, 2.0])
-    with pager_col:
-        pager_widths = [2.0] + [0.55 if item == "..." else 2 for item in visible_pages] + [2.0]
-        pager_cols = st.columns(pager_widths, gap="small")
-
-        with pager_cols[0]:
-            if st.button("◀", key="explorer_page_prev", use_container_width=True, disabled=current_page == 1):
-                target_page = current_page - 1
-
-        for idx, item in enumerate(visible_pages, start=1):
-            with pager_cols[idx]:
-                if item == "...":
-                    st.markdown("<div style='text-align:center; padding-top:0.35rem;'>...</div>", unsafe_allow_html=True)
-                else:
-                    if st.button(
-                        str(item),
-                        key=f"explorer_page_{item}",
-                        width='stretch',
-                        type="primary" if item == current_page else "secondary",
-                    ):
-                        target_page = item
-
-        with pager_cols[-1]:
-            if st.button("▶", key="explorer_page_next", use_container_width=True, disabled=current_page == total_pages):
-                target_page = current_page + 1
-
-    target_page = max(1, min(target_page, total_pages))
-    if target_page != st.session_state["explorer_page"]:
-        st.session_state["explorer_page"] = target_page
-        st.rerun()
-
-    current_page = st.session_state["explorer_page"]
-
-    start_idx = (current_page - 1) * items_per_page
-    end_idx = start_idx + items_per_page
-    page_df = filtered_df.iloc[start_idx:end_idx]
-
-    st.caption(f"Mostrando {start_idx + 1}-{min(end_idx, total_items)} de {total_items} descuentos")
-
-    cols = st.columns(3)
-    for i, (_, row) in enumerate(page_df.iterrows()):
-        with cols[i % 3]:
-            start_date = pd.to_datetime(row['discount_start_date']).strftime('%d/%m/%Y') if pd.notna(row['discount_start_date']) else "N/A"
-            end_date = pd.to_datetime(row['discount_end_date']).strftime('%d/%m/%Y') if pd.notna(row['discount_end_date']) else "N/A"
-
-            validity = get_validity(row)
-            discount_rate_raw = row.get('discount_rate')
-            if pd.notna(discount_rate_raw) and float(discount_rate_raw) > 0:
-                discount_rate = f"{discount_rate_raw:.0%}"
-            else:
-                discount_rate = "-"
-
-            installments_raw = row.get('discount_no_interest_installment_qty')
-            if pd.notna(installments_raw) and float(installments_raw) > 0:
-                installments_metric_value = str(int(installments_raw))
-            else:
-                installments_metric_value = "-"
-
-            min_purchase_raw = row.get('discount_min_purchase_amount')
-            if pd.notna(min_purchase_raw):
-                min_purchase_val = "Sin mínimo" if float(min_purchase_raw) == 0 else f"${int(min_purchase_raw)}"
-            else:
-                min_purchase_val = 'N/A'
-
-            max_discount_raw = row.get('discount_max_discount_amount')
-            if pd.notna(max_discount_raw):
-                max_purchase_val = "Sin tope" if float(max_discount_raw) == 0 else f"${int(max_discount_raw)}"
-            else:
-                max_purchase_val = 'N/A'
-
-            valid_days_list = map_days(row['discount_valid_days_list'])
-            issuer_name = str(row.get('issuer_name', ''))
-            issuer_key = normalize_issuer_key(issuer_name)
-            icon_filename = icon_mapping.get(issuer_key)
-            icon_path = ICONS_DIR / icon_filename if icon_filename else None
-            icon_base64 = get_base64_icon(str(icon_path)) if icon_path and icon_path.exists() else None
-            icon_html = (
-                f"<img src=\"data:image/png;base64,{icon_base64}\" alt=\"{escape(issuer_name)}\" style=\"height:22px; width:auto; max-width:88px; object-fit:contain;\"/>"
-                if icon_base64
-                else ""
-            )
-            day_badges = [
-                ("Lun", "L"),
-                ("Mar", "M"),
-                ("Mié", "M"),
-                ("Jue", "J"),
-                ("Vie", "V"),
-                ("Sáb", "S"),
-                ("Dom", "D"),
-            ]
-
-            with st.container(border=True):
-                st.markdown(
-                    f"""
-                    <div style=\"background-color:rgba(0,163,108,0.12); border-radius:10px 10px 0 0; padding:4px 12px; margin:-0.95rem -0.95rem 0 -0.95rem; color:#00A36C; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:34px;\">
-                        <span style=\"overflow:hidden; text-overflow:ellipsis; white-space:nowrap;\">{row['merchant_category_name']}</span>
-                        <span style=\"display:inline-flex; align-items:center; justify-content:flex-end; min-width:24px;\">{icon_html}</span>
-                    </div>
-                    <div style=\"background-color:#F0F7F4; padding:10px 12px; margin:0 -0.95rem 0.75rem -0.95rem; height:5.5rem; display:flex; align-items:center;\">
-                        <h3 style=\"margin:0; color:#1A202C; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;\">{row['merchant_name']}</h3>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                h1, h2 = st.columns(2)
-                h1.markdown(
-                    f"""
-                        <div style="background-color:#F0F7F4; border:1px solid rgba(0,163,108,0.25); border-radius:10px; padding:8px 10px; text-align:center;">
-                        <div style=\"font-size:0.85rem; color:#1A202C;\">Descuento</div>
-                        <div style=\"font-size:1.8rem; font-weight:700; color:#00A36C; line-height:1.1;\">{format_display_value(discount_rate, ' OFF')}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                h2.markdown(
-                    f"""
-                        <div style="background-color:#F0F7F4; border:1px solid rgba(0,163,108,0.25); border-radius:10px; padding:8px 10px; text-align:center;">
-                        <div style=\"font-size:0.85rem; color:#1A202C;\">Cuotas sin interes</div>
-                        <div style=\"font-size:1.8rem; font-weight:700; color:#00A36C; line-height:1.1;\">{installments_metric_value}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.text('') # buffer
-                detail_rows = [
-                    ("Emisor", row['issuer_name']),
-                    ("Formato", validity),
-                    ("Validez", f"{start_date} a {end_date}"),
-                    ("Compra Mínima", min_purchase_val),
-                    ("Tope", max_purchase_val),
-                ]
-                detail_rows_html = "".join(
-                    f"""
-                    <div style=\"display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin:0.25rem 0;\">
-                        <span style=\"font-weight:600; color:#1A202C;\">{escape(str(label))}:</span>
-                        <span style=\"text-align:right; color:#1A202C;\">{escape(str(value))}</span>
-                    </div>
-                    """
-                    for label, value in detail_rows
-                )
-                st.markdown(detail_rows_html, unsafe_allow_html=True)
-
-                day_circles_html = "".join(
-                    f"""
-                    <span title=\"{escape(day_name)}\" style=\"width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:600; background:{'#00A36C' if day_name in valid_days_list else '#DDEBE4'}; color:{'#FFFFFF' if day_name in valid_days_list else '#607081'};\">{day_short}</span>
-                    """
-                    for day_name, day_short in day_badges
-                )
-                st.markdown(
-                    f"""
-                    <div style=\"display:flex; justify-content:space-between; align-items:center; gap:12px; margin:0.35rem 0 0.15rem 0;\">
-                        <span style=\"font-weight:600; color:#1A202C;\">Días Válidos:</span>
-                        <div style=\"display:flex; gap:6px;\">{day_circles_html}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                with st.popover("📋 Términos y Condiciones"):
-                    if pd.notna(row['discount_terms_and_conditions']) and row['discount_terms_and_conditions'] != '':
-                        st.text(row['discount_terms_and_conditions'])
-                    else:
-                        st.text("No hay términos y condiciones disponibles.")
-
-
 # --- Navigation ---
 pg = st.navigation([
-    st.Page(page_guided_search, title="Explorar descuentos", icon=":material/tune:"),
+    st.Page(page_guided_search, title="Explorar descuentos", icon=":material/search:"),
     st.Page(page_issuer_status, title="Entidades disponibles", icon=":material/fact_check:"),
 ])
 pg.run()
