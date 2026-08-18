@@ -198,6 +198,18 @@ select
         array_length(json_query_array(raw_payload, '$.canalesVenta.sucursales')) > 0
     ) as discount_valid_instore,
 
+    {#
+        grupoTarjeta always contains a non-null, non-empty scalar value. 
+        In the event that happens, return empty array so tests fail.
+    #}
+    case
+        when json_value(raw_payload, '$.grupoTarjeta') is not null
+            and json_value(raw_payload, '$.grupoTarjeta') != ''
+            {# parsed value is a scalar. Converting to singled value array for consistency #}
+            then [json_value(raw_payload, '$.grupoTarjeta')]
+        else []
+    end as discount_payment_methods_list,
+
     raw_payload as discount_metadata,
     scraped_at_dt
 
