@@ -1,0 +1,9 @@
+raw_tarjeta,raw_tipoTarjeta,parsed_type,parsed_card_network,parsed_card_tier
+Tarjeta Access Now Visa,Credito,credit_card,visa,Access Now
+Tarjeta PowerCard Visa,Credito,credit_card,visa,PowerCard
+Tarjeta Visa,Credito,credit_card,visa,Standard
+Tarjeta American Express,Credito,credit_card,amex,Standard
+Tarjeta Icon American Express,Credito,credit_card,amex,Icon
+Tarjeta Mastercard,Credito,credit_card,mastercard,Standard
+Tarjeta PowerCard Mastercard,Credito,credit_card,mastercard,PowerCard
+Tarjeta Galicia Débito,Debito,debit_card,visa,Standard

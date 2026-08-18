@@ -1,0 +1,5 @@
+raw_grupo_tarjeta,parsed_type,parsed_card_network,parsed_card_tier
+Tarjetas de crédito BBVA,credit_card,all,all
+Tarjetas de crédito y débito BBVA,credit_card,all,all
+Tarjetas de crédito y débito BBVA,debit_card,all,all
+Tarjetas de débito BBVA,debit_card,all,all

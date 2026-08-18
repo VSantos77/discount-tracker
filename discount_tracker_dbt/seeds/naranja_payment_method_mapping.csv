@@ -1,0 +1,5 @@
+raw_payment_method,parsed_type,parsed_card_network,parsed_card_tier
+credito,credit_card,naranja,Standard
+debito,debit_card,naranja,Standard
+dinero,account_money,,
+visa,credit_card,visa,Standard
