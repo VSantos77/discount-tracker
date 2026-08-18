@@ -161,6 +161,51 @@ def format_display_value(value, suffix=""):
     return f"{value}{suffix}"
 
 
+PAYMENT_METHOD_TYPE_LABELS = {
+    'credit_card': 'Crédito',
+    'debit_card': 'Débito',
+    'account_money': 'Dinero en cuenta',
+}
+
+
+def _is_missing_payment_field(value):
+    if value is None:
+        return True
+    if isinstance(value, float) and pd.isna(value):
+        return True
+    if isinstance(value, str) and value.strip() == '':
+        return True
+    return False
+
+
+def format_payment_method_entry(entry):
+    """Build a display label for a single payment method struct (type, card_network, card_tier)."""
+    raw_type = entry.get('type') if isinstance(entry, dict) else None
+    type_label = PAYMENT_METHOD_TYPE_LABELS.get(raw_type, raw_type or '')
+
+    parts = [type_label] if type_label else []
+    for field in ('card_network', 'card_tier'):
+        value = entry.get(field) if isinstance(entry, dict) else None
+        if _is_missing_payment_field(value):
+            continue
+        label = 'Todas' if value == 'all' else str(value)
+        if label not in parts:
+            parts.append(label)
+    return " ".join(parts)
+
+
+def format_payment_methods(payment_methods_list):
+    """Build the 'Métodos de pago' display string from a discount's payment methods array."""
+    if payment_methods_list is None or (hasattr(payment_methods_list, '__len__') and len(payment_methods_list) == 0):
+        return "-"
+    labels = []
+    for entry in payment_methods_list:
+        label = format_payment_method_entry(entry)
+        if label and label not in labels:
+            labels.append(label)
+    return ", ".join(labels) if labels else "-"
+
+
 # --- PAGE: ISSUER STATUS ---
 def page_issuer_status():
     st.title("Entidades disponibles")
@@ -450,6 +495,7 @@ def page_guided_search():
                 end_date = pd.to_datetime(row["discount_end_date"]).strftime("%d/%m/%Y") if pd.notna(row["discount_end_date"]) else "N/A"
                 validity = get_validity(row)
                 discount_rate, installments_value, min_purchase_value, max_discount_value = format_discount_fields(row)
+                payment_methods_value = format_payment_methods(row.get("discount_payment_methods_list"))
                 valid_days_list = map_days(row.get("discount_valid_days_list"))
                 day_badges = [
                     ("Lun", "L"),
@@ -522,6 +568,7 @@ def page_guided_search():
                         ("Validez", f"{start_date} a {end_date}"),
                         ("Compra Mínima", min_purchase_value),
                         ("Tope", max_discount_value),
+                        ("Métodos de pago", payment_methods_value),
                     ]
                     detail_rows_html = "".join(
                         f"""
