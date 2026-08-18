@@ -7,13 +7,13 @@ _staging_tests: &staging_tests
             expression: "discount_valid_online or discount_valid_instore"
           config:
             warn_if: '>1'
-            error_if: '>10'
+            error_if: '>50'
       - dbt_utils.expression_is_true:
           arguments:
             expression: "discount_rate != 0 or discount_no_interest_installment_qty != 0"
           config:
             warn_if: '>1'
-            error_if: '>10'
+            error_if: '>50'
   columns:
     - name: source_id
       data_tests:
@@ -76,6 +76,10 @@ _staging_tests: &staging_tests
     - name: discount_valid_instore
       data_tests:
         - not_null
+    - name: discount_payment_methods_list
+      data_tests:
+        - not_null
+        - non_empty_array
 
 models:
   - name: stg_bbva

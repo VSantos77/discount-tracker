@@ -19,6 +19,8 @@ valid_structure as (
         and json_type(json_query(raw_payload, '$.benefit'))          is not null
         and json_type(json_query(raw_payload, '$.promotionDetails')) is not null
         and json_type(json_query(raw_payload, '$.days.weekdaysApplied')) is not null
+        and json_type(json_query(raw_payload, '$.paymentMethods')) is not null
+
 )
 
 
@@ -119,6 +121,17 @@ select
     ) or (
         ARRAY_LENGTH(JSON_QUERY_ARRAY(raw_payload, '$.commerces')) > 0
     ) as discount_valid_instore,
+
+    array(
+    select json_value(m, '$')
+    from unnest(
+            {# Coalescing to avoid error from unnest on null value #}
+            coalesce(
+                json_query_array(raw_payload, '$.paymentMethods'),
+                []
+            )
+        ) as m
+    ) as discount_payment_methods_list,
 
     raw_payload as discount_metadata,
     scraped_at_dt
