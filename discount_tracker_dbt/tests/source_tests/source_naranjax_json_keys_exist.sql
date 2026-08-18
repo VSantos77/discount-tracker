@@ -8,7 +8,7 @@
         '$.days',
         '$.benefit',
         '$.promotionDetails',
-        '$.days.weekdaysApplied'
+        '$.days.weekdaysApplied',
         '$.paymentMethods'
     ],
     where_clause="spider = 'naranjax'"
