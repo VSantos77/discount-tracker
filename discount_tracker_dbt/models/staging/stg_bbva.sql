@@ -200,15 +200,16 @@ select
 
     {#
         grupoTarjeta always contains a non-null, non-empty scalar value. 
-        In the event that happens, return empty array so tests fail.
+        Join to seed produces one record per payment method, later aggregated as an array.
     #}
-    case
-        when json_value(raw_payload, '$.grupoTarjeta') is not null
-            and json_value(raw_payload, '$.grupoTarjeta') != ''
-            {# parsed value is a scalar. Converting to singled value array for consistency #}
-            then [json_value(raw_payload, '$.grupoTarjeta')]
-        else []
-    end as discount_payment_methods_list,
+    array(
+        select as struct
+            m.parsed_type as type,
+            m.parsed_card_network as card_network,
+            m.parsed_card_tier as card_tier
+        from {{ ref('bbva_payment_method_mapping') }} as m
+        where m.raw_grupo_tarjeta = json_value(raw_payload, '$.grupoTarjeta')
+    ) as discount_payment_methods_list,
 
     raw_payload as discount_metadata,
     scraped_at_dt
