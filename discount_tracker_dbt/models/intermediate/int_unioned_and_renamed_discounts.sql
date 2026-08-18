@@ -1,17 +1,12 @@
-with
-
-bbva as (select * from {{ ref('stg_bbva') }}),
-
-galicia as (select * from {{ ref('stg_galicia') }}),
-
-naranjax as (select * from {{ ref('stg_naranjax') }}),
-
-unioned as (
-    select * from bbva
-    union all
-    select * from galicia
-    union all
-    select * from naranjax
+with unioned as (
+    {{ 
+        dbt_utils.union_relations(
+        relations=[
+            ref('stg_bbva'), 
+            ref('stg_galicia'), 
+            ref('stg_naranjax')
+        ]
+    ) }}
 ),
 
 renamed as (
