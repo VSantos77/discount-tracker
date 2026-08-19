@@ -20,7 +20,7 @@ jobs:
             enable-cache: true
 
       - name: Install deps
-        run: uv sync --dev
+        run: uv sync --dev --group scrapy
 
       - name: Test spiders
         run: uv run pytest tests/spiders/ -v
