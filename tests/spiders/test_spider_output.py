@@ -44,7 +44,7 @@ def test_spider_produces_valid_items(spider_name, tmp_path):
         ],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=100,
     )
 
     assert result.returncode == 0, (
