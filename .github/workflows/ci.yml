@@ -44,6 +44,7 @@ jobs:
           # Double tag to update latest and keep traceability
           run: |
             docker build \
+              --target scrapy \
               -t vsantos77/discount-tracker-scrapy:latest \
               -t vsantos77/discount-tracker-scrapy:${{ github.sha }} \
               .
@@ -59,6 +60,7 @@ jobs:
           uses: google-github-actions/setup-gcloud@v2
 
         - name: Update scrapy job image reference
+          # Update scrapy cloud run job to point to the recently pushed Docker image
           run: |
             gcloud run jobs update discount-tracker-scrapy-job \
               --image docker.io/vsantos77/discount-tracker-scrapy:${{ github.sha }} \
