@@ -1,0 +1,36 @@
+galicia:
+    - source_id
+    - tipoPromocion
+    - categoria
+    - marca
+    - fechaDesde
+    - fechaHasta
+    - porcentajeAhorro
+    - descripcionAdicional
+    - legales
+    - topeReintegro
+    - minimoCompra
+    - cuotaSinInteresHasta
+    - diasAplicacion
+    - tiendaOnline
+    - tiendaFisica
+    - leyendaCompra
+    - mediosDePago
+naranjax:
+    - id
+    - commerceName
+    - benefitName
+    - days
+    - benefit
+    - promotionDetails
+    - days.weekdaysApplied
+    - paymentMethods
+bbva:
+    - source_id 
+    - cabecera 
+    - canalesVenta 
+    - beneficios 
+    - diasPromo 
+    - basesCondiciones 
+    - subcabecera
+    - grupoTarjeta
