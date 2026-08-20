@@ -1,0 +1,57 @@
+# .github/workflows/ci-dbt.yml
+name: CI dbt
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      dbt: ${{ steps.filter.outputs.dbt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            dbt:
+              - 'discount_tracker_dbt/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.dbt == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    defaults:
+      run:
+        working-directory: discount_tracker_dbt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install deps
+        run: uv sync --dev --group dbt
+
+      - name: dbt build against ci target
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+          GCP_DBT_SA_KEY: ${{ vars.GCP_DBT_SA_KEY }}
+        run: |
+          uv run dbt deps
+          uv run dbt build --target ci
