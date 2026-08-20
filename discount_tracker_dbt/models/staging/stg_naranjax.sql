@@ -25,7 +25,7 @@ valid_structure as (
 
 parsed as (
     select
-        {# Row id used for exploding payment methods and later reconciliation #}
+        {# Row id used for exploding payment methods and later reconciliation  #}
         row_number() over() as _row_id,
         json_value(raw_payload, '$.id') as source_id,
         'Naranja X' as issuer_name,
