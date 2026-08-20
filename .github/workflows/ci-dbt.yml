@@ -70,10 +70,7 @@ jobs:
 
   deploy:
     needs: [changes,test]
-    if: |
-        github.ref == 'refs/heads/main' && 
-        github.event_name == 'push' &&
-        ${{ needs.changes.outputs.dbt_deploy == 'true' }}
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.changes.outputs.dbt_deploy == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
