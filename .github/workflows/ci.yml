@@ -65,6 +65,7 @@ jobs:
 
   deploy:
       needs: [changes, test]
+      # Run only on push to main + relevant file changes
       if: |
         github.ref == 'refs/heads/main' && github.event_name == 'push' &&
         ${{ needs.changes.outputs.scrapy_deploy == 'true' }}
