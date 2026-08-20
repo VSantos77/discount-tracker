@@ -18,12 +18,14 @@ jobs:
       scrapy_test: ${{ steps.filter.outputs.scrapy_test }}
       scrapy_deploy: ${{ steps.filter.outputs.scrapy_deploy }}
     steps:
-    # Set path filters for each case: scrapy test and scrapy deploy
-    # Run test on all changes affecting both scrapy and tests
-    # Run deploy only if actual code changed (+ docker and uv changes)
+    
+    - uses: actions/checkout@v4
     - uses: dorny/paths-filter@v4
       id: filter
       with:
+        # Set path filters for each case: scrapy test and scrapy deploy
+        # Run test on all changes affecting both scrapy and tests
+        # Run deploy only if actual code changed (+ docker and uv changes)
         filters: |
           scrapy_test:
             - 'discount_tracker_scrapy/**'
