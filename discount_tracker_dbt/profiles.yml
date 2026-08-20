@@ -23,8 +23,8 @@ discount-tracker-bq:
       priority: interactive
     ci:
       type: bigquery
-      method: service-account-json
-      keyfile_json: "{{ env_var('GCP_DBT_SA_KEY') }}"
+      method: service-account
+      keyfile: "{{ env_var('DBT_KEYFILE_PATH') }}"
       project: "{{ env_var('GCP_PROJECT_ID') }}"
       dataset: dev
       threads: 4
