@@ -51,7 +51,7 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v2
         with:
-            credentials_json: ${{ secrets.DBT_CI_SA_KEY }}
+            credentials_json: ${{ secrets.GCP_DBT_SA_KEY }}
 
       - name: dbt build against ci target
         env:
