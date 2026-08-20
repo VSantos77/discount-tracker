@@ -51,7 +51,7 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GCP_REGION: ${{ vars.GCP_REGION }}
-          GCP_DBT_SA_KEY: ${{ vars.GCP_DBT_SA_KEY }}
+          GCP_DBT_SA_KEY: ${{ secrets.GCP_DBT_SA_KEY }}
         run: |
           uv run dbt deps
           uv run dbt build --target ci
