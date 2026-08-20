@@ -36,7 +36,7 @@ resource "google_cloud_run_v2_job" "scrapy-job" {
       max_retries     = 0
 
       containers {
-        image   = "docker.io/vsantos77/discount-tracker-scrapy:v1.2"
+        image   = "docker.io/vsantos77/discount-tracker-scrapy:latest"
         command = ["scrapy"]
         args    = ["crawl", "galicia"]
 
@@ -108,7 +108,7 @@ resource "google_cloud_run_v2_job" "dbt-job" {
       max_retries     = 0
 
       containers {
-        image   = "docker.io/vsantos77/discount-tracker-dbt:v1.2"
+        image   = "docker.io/vsantos77/discount-tracker-dbt:latest"
         command = ["dbt"]
         args    = ["build", "--target", "cloud-run-prod"]
 
