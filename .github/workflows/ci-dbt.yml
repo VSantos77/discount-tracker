@@ -47,14 +47,17 @@ jobs:
       - name: Install deps
         run: uv sync --dev --group dbt
 
-      - name: Write GCP keyfile
-        run: echo '${{ secrets.DBT_CI_SA_KEY }}' > /tmp/dbt-ci-key.json
+      - name: Auth on GCP
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+            credentials_json: ${{ secrets.DBT_CI_SA_KEY }}
 
       - name: dbt build against ci target
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GCP_REGION: ${{ vars.GCP_REGION }}
-          DBT_KEYFILE_PATH: /tmp/dbt-ci-key.json
+          DBT_KEYFILE_PATH: ${{ steps.auth.outputs.credentials_file_path }}
         run: |
           uv run dbt deps
           uv run dbt build --target ci
