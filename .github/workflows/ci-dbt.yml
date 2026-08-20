@@ -14,7 +14,8 @@ jobs:
     permissions:
       pull-requests: read
     outputs:
-      dbt: ${{ steps.filter.outputs.dbt }}
+      dbt_test: ${{ steps.filter.outputs.dbt_test }}
+      dbt_deploy: ${{ steps.filter.outputs.dbt_deploy }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v4
@@ -33,7 +34,7 @@ jobs:
 
   test:
     needs: changes
-    if: needs.changes.outputs.dbt_test == 'true'
+    if: ${{ needs.changes.outputs.dbt_test == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
