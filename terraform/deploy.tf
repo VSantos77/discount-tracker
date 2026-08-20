@@ -34,22 +34,7 @@ resource "google_project_iam_member" "dbt_ci_sa_bq_job_user" {
 
 # Read and write tables/views (viewer only to raw + editor to dev datasets)
 
-resource "google_bigquery_dataset_iam_member" "dbt_ci_editor_raw" {
-  dataset_id = google_bigquery_dataset.dataset_raw_source.dataset_id
-  project    = var.gcp_project_id
-  role       = "roles/bigquery.dataViewer"
-  member     = "serviceAccount:${google_service_account.dbt_ci_sa.email}"
-}
-
-resource "google_bigquery_dataset_iam_member" "dbt_ci_editor_dev_staged" {
-  dataset_id = google_bigquery_dataset.dataset_dev_dbt_staged.dataset_id
-  project    = var.gcp_project_id
-  role       = "roles/bigquery.dataEditor"
-  member     = "serviceAccount:${google_service_account.dbt_ci_sa.email}"
-}
-
-resource "google_bigquery_dataset_iam_member" "dbt_ci_editor_dev_analytics" {
-  dataset_id = google_bigquery_dataset.dataset_dev_dbt_analytics.dataset_id
+resource "google_project_iam_member" "dbt_ci_bq_editor" {
   project    = var.gcp_project_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.dbt_ci_sa.email}"
