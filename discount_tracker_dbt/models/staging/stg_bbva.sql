@@ -120,7 +120,7 @@ select
         json_value(raw_payload, '$.source_id')
     ) as discount_url,
 
-    {# Null means 0 max discount amount #}
+    {# Null means 0 max discount amount  #}
     coalesce(
         case
         when array_length(json_query_array(raw_payload, '$.beneficios')) > 0
