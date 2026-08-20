@@ -21,3 +21,12 @@ discount-tracker-bq:
       timeout_seconds: 300
       location: "{{ env_var('GCP_REGION') }}" # Must match your GCS bucket/BigQuery dataset location
       priority: interactive
+    ci:
+      type: bigquery
+      method: service-account-json
+      keyfile_json: "{{ env_var('GCP_DBT_SA_KEY') }}"
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: dev
+      threads: 4
+      timeout_seconds: 300
+      location: "{{ env_var('GCP_REGION') }}"
