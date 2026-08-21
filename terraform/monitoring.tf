@@ -146,3 +146,55 @@ resource "google_logging_metric" "scrapy_403_responses" {
     }
   }
 }
+
+## Alerting policies
+
+# Add notification email via Terraform var (set via env var)
+
+resource "google_monitoring_notification_channel" "email" {
+  display_name = "Alertas por email - discount tracker"
+  type         = "email"
+  labels = {
+    email_address = "${var.notification_email}"
+  }
+}
+
+# Create alerting policy for prod workflow execution failure.
+# Alerts on any failed execution
+resource "google_monitoring_alert_policy" "workflow_execution_failed" {
+  display_name = "Production workflow - execution failed"
+  combiner      = "OR"
+
+  conditions {
+    display_name = "Workflow finished with status FAILED"
+
+    condition_threshold {
+      filter = <<-EOT
+        resource.type = "workflows.googleapis.com/Workflow"
+        resource.labels.workflow_id = "${google_workflows_workflow.prod_workflow.name}"
+        metric.type = "workflows.googleapis.com/finished_execution_count"
+        metric.labels.status = "FAILED"
+      EOT
+
+      # Greater than 0. No duration.
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+
+      # Agg every min, sum failed executions within minute
+      aggregations {
+        alignment_period      = "60s"
+        cross_series_reducer  = "REDUCE_SUM"
+        per_series_aligner    = "ALIGN_SUM"
+        group_by_fields       = ["resource.label.workflow_id"]
+      }
+
+      # Trigger on any series meeting the threshold (irrelevant here since only one series)
+      trigger {
+        count = 1
+      }
+    }
+  }
+  # Set notification channel
+  notification_channels = [google_monitoring_notification_channel.email.id]
+}
