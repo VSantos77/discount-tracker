@@ -44,13 +44,9 @@ FROM base AS dbt
 COPY --from=dbt-builder /app/.venv /app/.venv
 # Copy dbt code
 COPY discount_tracker_dbt/ ./discount_tracker_dbt/
-# Copy shared schema definitions (required keys), used by --vars
-COPY schemas/ ./schemas/
-
-COPY discount_tracker_dbt/entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
 
 WORKDIR /app/discount_tracker_dbt
+
 RUN dbt deps
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["dbt"]
