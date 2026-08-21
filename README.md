@@ -1,8 +1,8 @@
-# 💸 Discount Tracker
+# 💸 Discount Tracker | Catalogo de Descuentos
 
-Discount Tracker is a platform that helps track discounts for different banks and other issuing entities in Argentina, implementing a full ELT cloud data pipeline. It scrapes live discount data from various sources, standardizes and validates it using dbt, and serves the curated result in a [Streamlit Dashboard](https://catalogo-de-descuentos.streamlit.app/).
+Discount Tracker ("Catalogo de Descuentos") is a platform that helps track discounts for different banks and other issuing entities in Argentina, implementing a full ELT cloud data pipeline. It scrapes live discount data from various sources, standardizes and validates it using dbt, and serves the curated result in a [Streamlit Dashboard](https://catalogo-de-descuentos.streamlit.app/).
 
-![alt text](resources/image.png)
+[app-demo.webm](https://github.com/user-attachments/assets/05bc775f-d1ac-4913-a4f1-083811ed85be)
 
 > NOTE: The UI is in Spanish because the target audience is in Argentina. Browser translation usually works well if you want to inspect it in another language.
 
