@@ -9,7 +9,14 @@ variable "gcp_region" {
   description = "Region for all resources"
 }
 
+# Passed down via env var
 variable "owner_email" {
   type        = string
   description = "Email for the project owner account"
+}
+
+# Passed down via env var
+variable "notification_email" {
+  type        = string
+  description = "Email for alerting policies notifications"
 }
