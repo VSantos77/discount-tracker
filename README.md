@@ -95,6 +95,10 @@ This is where the deployment boundary is enforced:
 - dbt jobs need BigQuery access and read access to the raw landing zone
 - the workflow service account only needs permission to trigger and observe jobs
 
+### CI/CD
+
+Two GitHub Actions pipelines ([.github/workflows/](.github/workflows/)) test and deploy the scrapy and dbt components independently on every push to `main`: run the relevant tests (real spider crawls for scrapy, `dbt build --target ci` against a dev dataset for dbt), then on a successful push to `main` build and push a Docker image and roll it out to the corresponding Cloud Run job. See [ARCHITECTURE.md §10](ARCHITECTURE.md#10-cicd) for the full pipeline breakdown.
+
 ## Key design decisions
 
 - One repository, multiple runtimes. The repo keeps the scraper, warehouse logic, and dashboard together so the data flow stays visible, but each runtime has a clear boundary.
@@ -106,6 +110,8 @@ This is where the deployment boundary is enforced:
 - Streamlit reads curated data only. The app is intentionally presentation-only, so it stays lightweight and easier to run locally or deploy separately.
 - Terraform owns the cloud shape. Infrastructure, IAM, datasets, and Cloud Run jobs are declared as code so the environment can be recreated consistently.
 - Scrapy and dbt runners each install only the required dependencies, keeping docker image size as low as possible.
+- CI/CD deploys are gated on tests passing and only run on a direct push to `main` — pull requests run tests but never deploy.
+- Docker Hub over Artifact Registry, and a service-account key over Workload Identity Federation, for both CI/CD and local auth. Both are deliberate simplicity trade-offs given the project's scale and risk profile, not oversights.
 
 ## Setup
 

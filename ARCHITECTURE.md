@@ -541,11 +541,19 @@ resource.labels.job_name="discount-tracker-scrapy-job"
 textPayload=~"WORKFLOW_STATS"
 ```
 
+### Workflow execution failure alert
+
+The scrapy metrics above only cover volume and performance — they say nothing about whether the *workflow itself* completed. A `google_monitoring_alert_policy` in [terraform/monitoring.tf](terraform/monitoring.tf) closes that gap by watching Cloud Workflows' own native metric, `workflows.googleapis.com/finished_execution_count`, filtered to `metric.labels.status = "FAILED"` on `discount-tracker-prod-workflow`. Any failed execution (`COMPARISON_GT` threshold `0`, no duration window — fires on the first occurrence) triggers immediately and emails the address configured via the `notification_email` Terraform variable (`TF_VAR_notification_email`), through a `google_monitoring_notification_channel`.
+
+This catches whole-run failures the scrapy stats can't: a spider crashing before it logs `WORKFLOW_STATS` at all, the GCS gate raising because zero new files landed (§7), or the dbt job failing outright.
+
+**Known gap:** `check_new_gcs_files` (§7) sums new files across *all* spiders. If one spider produces zero files while the other two succeed, the GCS gate still passes and the workflow reports success — this alert doesn't fire either, since the workflow didn't fail. The failing spider's silence for that week goes unnoticed.
+
 ---
 
 ## 9. Security & IAM
 
-All service accounts and role bindings are declared in [terraform/jobs.tf](terraform/jobs.tf) and [terraform/workflow.tf](terraform/workflow.tf). Each runtime has its own identity with only the permissions it needs to do its job.
+All service accounts and role bindings are declared in [terraform/jobs.tf](terraform/jobs.tf), [terraform/workflow.tf](terraform/workflow.tf), and (for the CI/CD identities) [terraform/deploy.tf](terraform/deploy.tf). Each runtime has its own identity with only the permissions it needs to do its job.
 
 ### Service accounts
 
@@ -555,8 +563,12 @@ All service accounts and role bindings are declared in [terraform/jobs.tf](terra
 | dbt SA | `discount-tracker-dbt-runner` | Cloud Run dbt job |
 | Workflow SA | `discount-tracker-workflows-sa` | Cloud Workflow + Cloud Scheduler |
 | Streamlit SA | `discount-tracker-streamlit` | Streamlit Cloud dashboard |
+| CI deploy SA | `github-actions-deploy` | GitHub Actions — updates Cloud Run job images on deploy (see [§10](#10-cicd)) |
+| dbt CI SA | `dbt-ci-sa` | GitHub Actions — `dbt build --target ci` (see [§10](#10-cicd)) |
 
 Streamlit uses a fourth service account declared in `jobs.tf`. Its key is exported and stored in Streamlit Cloud's secrets manager (`st.secrets["gcp_service_account"]`).
+
+The last two are CI/CD identities, not pipeline runtime identities — they're declared separately in [terraform/deploy.tf](terraform/deploy.tf) and covered in full in §10.
 
 ### Role assignments
 
@@ -616,4 +628,91 @@ Streamlit   → BigQuery analytics datasets (read only)
 ```
 
 No single service account spans the full pipeline. The workflow can start jobs but cannot see their data. The scraper can produce data but cannot query it. dbt can transform data but cannot trigger other services.
+
+---
+
+## 10. CI/CD
+
+Two independent GitHub Actions pipelines — one per deployable component — test and deploy on every push to `main`. Both follow the same shape: a `changes` job computes path filters that gate `test` and `deploy` independently, so an unrelated change doesn't trigger either.
+
+Two trade-offs apply to both pipelines, made deliberately for a personal, non-critical project: **Docker Hub** is used instead of Artifact Registry (less infra to manage, pull volume is low and not critical-path), and **long-lived service-account key JSON** is used for GCP auth instead of Workload Identity Federation (WIF is more secure but has more setup cost than this project's risk profile justifies).
+
+### Workflows
+
+| File | Component | Triggers |
+|---|---|---|
+| [.github/workflows/ci_cd-scrapy.yml](.github/workflows/ci_cd-scrapy.yml) | Scrapy spiders | push/PR to `main`, `workflow_dispatch` |
+| [.github/workflows/ci_cd-dbt.yml](.github/workflows/ci_cd-dbt.yml) | dbt project | push/PR to `main`, `workflow_dispatch` |
+
+Each workflow runs `changes` → `test` → `deploy`. `deploy` is gated on `needs: test` **and** `if: github.ref == 'refs/heads/main' && github.event_name == 'push'` — it never runs on a pull request, even one where `test` passed. A direct push (or merge) to `main` is the only way to ship a new image.
+
+### Path filtering
+
+`dorny/paths-filter@v4` computes independent `*_test` / `*_deploy` booleans per workflow:
+
+| Workflow | `test` filter | `deploy` filter |
+|---|---|---|
+| scrapy | `discount_tracker_scrapy/**`, `pyproject.toml`, `uv.lock`, `Dockerfile`, `tests/spiders/**`, `discount_tracker_dbt/dbt_project.yml` | `discount_tracker_scrapy/**`, `pyproject.toml`, `uv.lock`, `Dockerfile` |
+| dbt | `discount_tracker_dbt/**`, `pyproject.toml`, `uv.lock` | `discount_tracker_dbt/**`, `pyproject.toml`, `uv.lock`, `Dockerfile` |
+
+The scrapy test filter includes `discount_tracker_dbt/dbt_project.yml` because that file is the single source of truth for required scrape keys (below) — a change there can break the spider test without any scrapy code changing.
+
+### Test — scrapy
+
+`test` in ci_cd-scrapy.yml runs the real spiders against the live sites, not recorded fixtures:
+
+```
+scrapy crawl <spider> -s CLOSESPIDER_ITEMCOUNT=1 -s CONCURRENT_REQUESTS=1 -o <file>
+```
+
+[tests/spiders/test_spider_output.py](tests/spiders/test_spider_output.py) then loads the produced JSONL and checks that every key required for that spider is present in the scraped `raw_payload`. Required keys are declared once, under `vars:` in [discount_tracker_dbt/dbt_project.yml](discount_tracker_dbt/dbt_project.yml), keyed by spider name — the test reads this file directly with `yaml.safe_load` instead of keeping its own copy. Keys may be dot-paths (e.g. `days.weekdaysApplied`); `has_nested_key` walks the path and returns whether it *exists*, independent of whether the leaf value is `null` — a payload like `{"days": {"weekdaysApplied": null}}` still passes, because the field is present but legitimately empty.
+
+Running against the live site instead of fixtures is a conscious trade-off: much simpler to set up, but slower and dependent on the target sites' availability — accepted as tech debt, not treated as a bug.
+
+### Test — dbt
+
+`test` in ci_cd-dbt.yml runs `dbt build --target ci`, which resolves to the `ci` output in [profiles.yml](discount_tracker_dbt/profiles.yml) — `dataset: dev`, authenticated with a dedicated service-account keyfile (`DBT_KEYFILE_PATH`, sourced from the `GCP_DBT_SA_KEY` secret) rather than developer OAuth. This is a separate identity from the production dbt-job SA (`discount-tracker-dbt-runner`, §9), used specifically so a CI bug can't touch prod — but today that isolation is enforced only by the `ci` target's `dataset: dev` setting, not by IAM: the CI service account's `bigquery.dataEditor` grant is project-scoped (see below), so it is not currently blocked from writing to `prod_*` if the target were ever misconfigured. This is the opposite of the isolation pattern used elsewhere in this project (§9) and is called out as tech debt below.
+
+The same required-keys vars also drive the dbt-side checks: `assert_payload_has_keys` (used in [tests/source_tests/](discount_tracker_dbt/tests/source_tests/), one file per spider) and `json_keys_not_null` (used as a `WHERE` filter in [stg_naranjax.sql](discount_tracker_dbt/models/staging/stg_naranjax.sql)) both consume `var('<spider>')` from the same `dbt_project.yml vars:` block the Python test reads — one list of required keys governs both the scrape-time and transform-time checks.
+
+### Deploy
+
+Both `deploy` jobs follow the same two steps:
+
+1. **Build and push to Docker Hub, double-tagged:**
+   ```bash
+   docker build --target <scrapy|dbt> \
+     -t vsantos77/discount-tracker-<component>:latest \
+     -t vsantos77/discount-tracker-<component>:${{ github.sha }} .
+   ```
+   `:latest` is what Terraform's Cloud Run job definitions reference ([jobs.tf](terraform/jobs.tf)) and is never changed by a deploy — this means a later `terraform apply` can't accidentally revert to an older image. `:<sha>` is what actually gets deployed; Cloud Run is told to pull that tag explicitly because re-pointing a job at `:latest` again doesn't reliably force a re-pull of a tag it has already seen.
+2. **Update the Cloud Run job**, authenticated as `github-actions-deploy` via `google-github-actions/auth@v2` with the `GCP_SA_KEY` secret:
+   ```bash
+   gcloud run jobs update discount-tracker-<scrapy|dbt>-job \
+     --image docker.io/vsantos77/discount-tracker-<component>:${{ github.sha }} \
+     --region ${{ vars.GCP_REGION }} --project ${{ vars.GCP_PROJECT_ID }}
+   ```
+
+### CI/CD service accounts
+
+Declared in [terraform/deploy.tf](terraform/deploy.tf), separate from the pipeline runtime service accounts in §9:
+
+| SA | Account ID | Role | Scope | Why |
+|---|---|---|---|---|
+| CI deploy SA | `github-actions-deploy` | `roles/run.developer` | Project | Update Cloud Run job definitions via `gcloud run jobs update` |
+| ↳ | | `roles/iam.serviceAccountUser` | `scraper_sa`, `dbt_sa` | Required to update a job that *runs as* another service account |
+| dbt CI SA | `dbt-ci-sa` | `roles/bigquery.jobUser` | Project | Submit `dbt build --target ci` queries |
+| ↳ | | `roles/bigquery.dataEditor` | Project | Read/write BigQuery during CI build — intended for `dev_*` only, see tech debt below |
+| ↳ | | `roles/storage.objectViewer` | Project | Read GCS for the `raw_discounts` external table |
+
+**Known tech debt:** `dbt-ci-sa`'s `bigquery.dataEditor` grant is project-scoped, not limited to `dev_dbt_staged` / `dev_dbt_analytics` — meaning IAM does not currently prevent the CI job from writing to the `prod_*` datasets, only the `ci` target's `dataset: dev` setting does. The grant was widened during setup to unblock dbt trying to create a `dev` dataset for seeds that had no explicit schema assigned — the more correct fix would have been assigning those seeds `+schema: dbt_staged` so they land in `dev_dbt_staged` like everything else, rather than broadening the IAM grant. Narrowing this to dataset-level `google_bigquery_dataset_iam_member` bindings (the pattern already used for the Streamlit SA in §9) is still pending.
+
+### GitHub Actions secrets and variables
+
+| Name | Kind | Used by | Purpose |
+|---|---|---|---|
+| `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | Secret | Both `deploy` jobs | Docker Hub auth for `docker push` |
+| `GCP_SA_KEY` | Secret | Both `deploy` jobs | `github-actions-deploy` SA key — updates Cloud Run job images |
+| `GCP_DBT_SA_KEY` | Secret | dbt `test` job | `dbt-ci-sa` SA key — runs `dbt build --target ci` |
+| `GCP_PROJECT_ID` / `GCP_REGION` | Variable | dbt `test` job, both `deploy` jobs | Non-secret config, read as `vars.*` |
 

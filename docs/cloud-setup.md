@@ -18,8 +18,10 @@ Before you start, make sure you have:
 - Terraform installed locally
 - Access to the repository and the ability to run `terraform` from the `terraform/` directory
 - Docker images already published for the Cloud Run jobs referenced by Terraform:
-  - `docker.io/vsantos77/discount-tracker-scrapy:v1.2`
-  - `docker.io/vsantos77/discount-tracker-dbt:v1.2`
+  - `docker.io/vsantos77/discount-tracker-scrapy:latest`
+  - `docker.io/vsantos77/discount-tracker-dbt:latest`
+
+  If you have the GitHub Actions CI/CD pipeline set up (see [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-cicd)), these are published automatically on every push to `main`. Otherwise, build and push them yourself from the [Dockerfile](../Dockerfile) before the first `terraform apply` — the Cloud Run job resources reference `:latest` and will fail to deploy if it doesn't exist yet.
 - A Google Cloud authentication method for Terraform, such as Application Default Credentials or a service account with sufficient permissions
 - A BigQuery service account payload for the Streamlit app if you intend to run the dashboard against the deployed warehouse
 
@@ -120,6 +122,7 @@ The Streamlit app reads credentials from `st.secrets`, not from Terraform-manage
 
 - This guide covers cloud deployment for the data platform, not local development setup.
 - The Cloud Run job images referenced in Terraform must already exist in Docker Hub or whichever registry you choose to use. You can also build the images using the provided Dockerfile and point the terraform declarations to the images hosted on any image repository.
+- This guide does not cover setting up the CI/CD pipeline itself — [terraform/deploy.tf](../terraform/deploy.tf) provisions the extra service accounts it needs (`github-actions-deploy`, `dbt-ci-sa`), but the GitHub Actions secrets and variables (`GCP_SA_KEY`, `GCP_DBT_SA_KEY`, `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `GCP_PROJECT_ID`, `GCP_REGION`) still need to be configured manually in the repository settings. See [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-cicd) for what each one is for.
 - The raw landing table uses hive partitioning with a partition filter, so queries should target the intended scraped-date partitions instead of scanning the whole bucket.
 - dbt uses incremental models for faster repeated builds, so rerunning the workflow should update only the changed slices of the warehouse when possible.
 - dbt tests and dbt-expectations rules are part of the deployment contract. If a model fails its checks, the pipeline should be treated as unhealthy until the data issue is resolved.
