@@ -22,7 +22,7 @@ resource "google_storage_bucket_iam_member" "gcs_bucket_reader" {
 resource "google_service_account_iam_member" "allow_me_to_act_as_scraper" {
   service_account_id = google_service_account.scraper_sa.name
   role               = "roles/iam.serviceAccountUser"
-  member             = "user:santiago.villaverde07@gmail.com"
+  member             = "user:${var.owner_email}"
 }
 
 resource "google_cloud_run_v2_job" "scrapy-job" {
@@ -89,7 +89,7 @@ resource "google_project_iam_member" "bq_data_editor" {
 resource "google_service_account_iam_member" "allow_me_to_act_as_dbt" {
   service_account_id = google_service_account.dbt_sa.name
   role               = "roles/iam.serviceAccountUser"
-  member             = "user:santiago.villaverde07@gmail.com"
+  member             = "user:${var.owner_email}"
 }
 
 resource "google_storage_bucket_iam_member" "dbt_gcs_object_viewer" {
@@ -166,5 +166,5 @@ resource "google_bigquery_dataset_iam_member" "streamlit_dev_analytics_viewer" {
 resource "google_service_account_iam_member" "allow_me_to_act_as_streamlit" {
   service_account_id = google_service_account.streamlit_sa.name
   role               = "roles/iam.serviceAccountUser"
-  member             = "user:santiago.villaverde07@gmail.com"
+  member             = "user:${var.owner_email}"
 }

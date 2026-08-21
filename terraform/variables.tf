@@ -8,3 +8,8 @@ variable "gcp_region" {
   default     = "us-east1" # Required for Always Free tier
   description = "Region for all resources"
 }
+
+variable "owner_email" {
+  type        = string
+  description = "Email for the project owner account"
+}
