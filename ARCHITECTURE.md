@@ -24,7 +24,7 @@ flowchart LR
             direction TB
             Staging["Staging\nnormalize & extract per source"]
             Intermediate["Intermediate\ndeduplicate & enrich"]
-            Analytics["Analytics\ndimensions · facts · streamlit views"]
+            Analytics["Analytics\nfact table · streamlit views"]
             Staging --> Intermediate --> Analytics
         end
         Scheduler --> Workflow --> Scrapy --> GCSgate --> DbtJob
@@ -243,73 +243,101 @@ The dbt project lives in [discount_tracker_dbt/](discount_tracker_dbt/). It impl
 | Layer | Models | Dataset | Materialization |
 |---|---|---|---|
 | Staging | `stg_galicia`, `stg_bbva`, `stg_naranjax` | `{env}_dbt_staged` | View |
-| Intermediate | `int_unioned_discounts`<br>`int_source_deduped_discounts`<br>`int_normalized_discounts`<br>`int_business_dedup_audit`<br>`int_business_deduped_discounts` | `{env}_dbt_staged` | View |
-| Analytics — core | `dim_issuers`, `dim_merchants`, `fct_discounts` | `{env}_dbt_analytics` | Table / Incremental |
+| Intermediate | `int_unioned_and_renamed_discounts`<br>`int_source_deduped_discounts`<br>`int_business_dedup_audit`<br>`int_business_deduped_discounts`<br>`int_normalized_discounts` | `{env}_dbt_staged` | View |
+| Analytics — core | `fct_discounts` | `{env}_dbt_analytics` | Incremental (merge) |
 | Analytics — streamlit | `streamlit_data`, `issuer_metadata` | `{env}_dbt_analytics` | Table |
 
-`{env}` is `prod` in Cloud Run and `dev` locally (`--target local-dev`).
+`{env}` is `prod` in Cloud Run and `dev` locally (`--target local-dev`). There is no separate dimensional layer — `fct_discounts` carries `issuer_name` and `merchant_category_name` directly as plain strings rather than joining out to `dim_issuers`/`dim_merchants` tables; the model set was simplified since the dimensional split added no query benefit at this data volume.
 
 ---
 
 ### Staging layer
 
-Each staging model reads from `raw_discounts` filtered to its own spider and extracts a uniform 18-column schema from the `raw_payload` JSON column using `JSON_VALUE`. All three models produce the same column set so they can be unioned cleanly in the intermediate layer.
+Each staging model reads from `raw_discounts` filtered to its own spider and extracts a uniform 18-column schema from the `raw_payload` JSON column using `JSON_VALUE`/`JSON_QUERY`. All three models produce the same column set so they can be unioned cleanly in the intermediate layer.
 
 **Source-specific differences:**
 
 **Dates** — each source uses a different format:
 
-| Spider | Format | Example |
+| Spider | Format | Fields |
 |---|---|---|
-| `bbva` | `%Y-%m-%d` | `2025-01-31` |
-| `galicia` | `%d/%m/%Y` | `31/01/2025` |
-| `naranjax` | `%d/%m/%Y` | `31/01/2025` |
+| `bbva` | `%Y-%m-%d` | `discount_start_date` / `discount_end_date` (already normalized by the spider) |
+| `galicia` | `%d/%m/%Y` | `fechaDesde` / `fechaHasta` |
+| `naranjax` | `%d/%m/%Y` | `days.dateFrom` / `days.dateTo` |
 
-**Discount rate** — normalized to a 0–1 float using different source fields:
+**Discount rate** — normalized to a 0–1 float, defaulting to `0` when nothing matches:
 
 | Spider | Approach |
 |---|---|
 | `galicia` | `porcentajeAhorro / 100` (e.g. `20` → `0.20`) |
-| `bbva` | Regex extraction from `cabecera`/`subcabecera` text |
-| `naranjax` | `detail.benefit.discountPercentage`; falls back to regex on `title` |
+| `bbva` | Regex `N%` extraction, tried in order against `cabecera` → `subcabecera` → `basesCondiciones` (`"N% de reintegro/descuento"`) → `beneficios[0].requisitos` |
+| `naranjax` | `benefit.discountPercentage / 100` |
 
-**Valid days list** — normalized to a 0-based integer array (0 = Monday, 6 = Sunday) from three different encodings:
+**Merchant name & category** — extraction differs enough per source that it's worth calling out:
+
+| Spider | Merchant name | Category |
+|---|---|---|
+| `bbva` | `cabecera` with trailing discount/installment annotations stripped by regex (e.g. `"Starbucks 20% de descuento"` → `"Starbucks"`) | `category_name` (set by the spider, not a raw API field) |
+| `galicia` | `categoria.descripcion` for category-type promos, `marca.nombre` for brand-type promos (branches on `tipoPromocion`) | `categoria.descripcion` or `marca.categoria.descripcion`, same branch |
+| `naranjax` | `commerceName` | `category.name` |
+
+**Valid days list** — normalized to a 0-based integer array (0 = Monday, 6 = Sunday):
 
 | Spider | Encoding | Example |
 |---|---|---|
-| `galicia` | Semicolon-separated Spanish abbreviations | `"Lu;Mi;Vi"` → `[0, 2, 4]` |
-| `bbva` | 7-character bitmask string | `"1010100"` → `[0, 2, 4]` |
-| `naranjax` | 1-based weekday integers | `[1, 3, 5]` → `[0, 2, 4]` |
+| `galicia` | Semicolon-separated Spanish abbreviations (`Lu`…`Do`) | `"Lu;Mi;Vi"` → `[0, 2, 4]` |
+| `bbva` | Comma-separated `0`/`1` flag string (Mon–Sun); `null` defaults to all 7 days valid | `"1,0,1,0,1,0,0"` → `[0, 2, 4]` |
+| `naranjax` | `days.weekdaysApplied`, 1-based weekday integers | `[1, 3, 5]` → `[0, 2, 4]` |
+
+**Online / in-store flags** — each source has its own edge case:
+
+| Spider | Logic |
+|---|---|
+| `bbva` | If `esModo` (paid via the MODO app) is true, forced to in-store-only; otherwise derived from `canalesVenta.web` / `canalesVenta.sucursales` array lengths |
+| `galicia` | `tiendaOnline` cast directly; `tiendaFisica` OR a text-search fallback for `"comercios adheridos"` in `leyendaCompra` |
+| `naranjax` | `promotionDetails.appliesOnline` / `appliesInStore`; in-store also true if the `commerces` array is non-empty |
+
+**Payment methods** — each source has its own raw representation of accepted cards, normalized through a dedicated per-spider seed into a common `{type, card_network, card_tier}` struct array:
+
+| Spider | Seed | Raw shape |
+|---|---|---|
+| `bbva` | [`bbva_payment_method_mapping`](discount_tracker_dbt/seeds/bbva_payment_method_mapping.csv) | `grupoTarjeta` — single scalar, joined directly |
+| `galicia` | [`galicia_payment_method_mapping`](discount_tracker_dbt/seeds/galicia_payment_method_mapping.csv) | `mediosDePago[]` — array of `{tarjeta, tipoTarjeta}` objects, exploded and re-joined on both fields |
+| `naranjax` | [`naranja_payment_method_mapping`](discount_tracker_dbt/seeds/naranja_payment_method_mapping.csv) | `paymentMethods[]` — array of plain strings |
+
+`galicia` and `naranjax` explode their raw array with `CROSS JOIN UNNEST`, join each element to its mapping seed, then re-aggregate back to one row via `ARRAY_AGG` grouped on a `ROW_NUMBER() OVER()` row id generated earlier in the same model (there's no natural per-row key at that point). `bbva` doesn't need this — `grupoTarjeta` is already a single scalar per item, so it can join and select the struct directly.
+
+**Malformed-record pre-filter (`naranjax` only)** — before any field extraction, a `valid_structure` CTE drops rows that are missing any key in `var('naranjax')` (the same required-keys list CI validates against, §10), using the `json_keys_not_null` macro. `bbva` and `galicia` have no equivalent pre-filter.
+
+**Business-rule check (all three, staging-level)** — every staging model runs two `dbt_utils.expression_is_true` tests, tolerant up to 50 violating rows (`warn_if: '>1'`, `error_if: '>50'`, per the `_staging_tests` anchor in [_staging_models.yml](discount_tracker_dbt/models/staging/_staging_models.yml)):
+- `discount_valid_online OR discount_valid_instore` — a discount must be redeemable somewhere
+- `discount_rate != 0 OR discount_no_interest_installment_qty != 0` — a discount must offer some actual benefit
 
 ---
 
 ### Intermediate layer
 
-The intermediate layer is split into five single-responsibility models, each building on the previous:
+Five single-responsibility models. Category resolution happens **last**, after deduplication — the dedup content hash is computed on the raw (pre-cleanup) `merchant_category_name`, not the cleaned category.
 
-**`int_unioned_discounts`** — unions `stg_bbva`, `stg_galicia`, and `stg_naranjax` with no other logic.
+**`int_unioned_and_renamed_discounts`** — unions `stg_bbva`, `stg_galicia`, and `stg_naranjax` via `dbt_utils.union_relations`, renames `scraped_at_dt` → `last_updated_at_date`, then filters out rows failing the same two business rules the staging tests check above (rate/installments and online/instore) — malformed or valueless rows never reach the rest of the pipeline. The staging-level tests catch these as warnings/errors before they're silently dropped here.
 
 **`int_source_deduped_discounts`** — generates a `discount_id` surrogate key from `(source_id, issuer_name)` using `dbt_utils.generate_surrogate_key` and deduplicates by `discount_id` keeping the most recent scrape:
 
 ```sql
-QUALIFY ROW_NUMBER() OVER (PARTITION BY discount_id ORDER BY scraped_at_dt DESC) = 1
+QUALIFY ROW_NUMBER() OVER (PARTITION BY discount_id ORDER BY last_updated_at_date DESC) = 1
 ```
 
-**`int_normalized_discounts`** — applies field normalizations (null coalescing on numeric fields, `GREATEST` guards on rates and installments) and resolves `merchant_category_clean` through a two-step lookup: the `merchant_category_override` seed is checked first by merchant name; if no match, the `merchant_category_mapping` seed is checked by raw category string; unmatched rows fall back to `'Sin categorizar'`. This is the only layer where either seed is joined.
+**`int_business_dedup_audit`** — some issuers publish the same promotion with a different `source_id` across scrape runs. This model generates a `discount_content_hash` surrogate key from 12 business-content fields (issuer, merchant, raw category, dates, rate, amounts, installments, valid days, online/instore flags, payment methods — arrays are stringified and sorted first so element order doesn't affect the hash) and assigns a `ROW_NUMBER()` within each hash group, ordered by recency (`discount_id` as a tie-breaker). All rows are kept for auditing.
 
-**`int_business_dedup_audit`** — some issuers publish the same promotion with different source IDs across scrape runs. This model generates a `discount_content_hash` surrogate key from 12 business-content fields (issuer, merchant, category, dates, rate, amounts, installments, valid days, online/instore flags) and assigns a `ROW_NUMBER()` within each hash group, ordered by recency. All rows are kept for auditing.
+**`int_business_deduped_discounts`** — filters the audit model to `rn = 1`, yielding one canonical row per unique business-level discount.
 
-**`int_business_deduped_discounts`** — filters the audit model to `rn = 1`, yielding one canonical row per unique business-level discount. This is the input to the analytics layer.
+**`int_normalized_discounts`** — the final intermediate step and direct input to `fct_discounts`. Resolves `merchant_category_clean` through a two-step lookup: the `merchant_category_override` seed is checked first by merchant name; if no match, `merchant_category_mapping` is checked by `(issuer_name, merchant_category_name)`; unmatched rows fall back to `'Sin categorizar'`. Also title-cases `merchant_name` via `INITCAP`. This is the only layer where either category seed is joined.
 
 ---
 
 ### Analytics — core layer
 
-**`dim_issuers`** — distinct `issuer_name` values with a surrogate `id`.
-
-**`dim_merchants`** — distinct `(merchant_name, merchant_category_clean)` pairs sourced from `int_business_deduped_discounts`. Category resolution is done upstream in `int_normalized_discounts`; this model reads the already-clean `merchant_category_clean` field directly and exposes it as `category_name`. No seed joins occur here.
-
-**`fct_discounts`** — the main fact table, materialized as incremental with `unique_key='id'` and merge strategy. Joins `int_business_deduped_discounts` with both dimension tables and drops the `discount_` prefix from all columns.
+**`fct_discounts`** — the sole analytics-core model, materialized as incremental with `unique_key='id'` and merge strategy. Built directly from `int_normalized_discounts`; drops the `discount_` prefix from all columns and carries `issuer_name` / `merchant_category_name` as plain denormalized strings — there is no `dim_issuers` or `dim_merchants` join.
 
 Incremental filter:
 
@@ -323,9 +351,9 @@ A `cutoff_date` dbt variable can be passed at run time to simulate historical lo
 
 ### Analytics — streamlit layer
 
-**`streamlit_data`** — joins `fct_discounts`, `dim_merchants`, and `dim_issuers`, reinstates the `discount_` prefix on all columns, uses `category_name` from the merchant dim as `merchant_category_name`, and adds a computed `discount_is_active` boolean (`start_date <= CURRENT_DATE AND end_date > CURRENT_DATE`). This is the primary table the Streamlit app reads.
+**`streamlit_data`** — a thin wrapper over `fct_discounts`: reinstates the `discount_` prefix on all columns and adds a computed `discount_is_active` boolean (`start_date <= CURRENT_DATE AND end_date > CURRENT_DATE`). This is the primary table the Streamlit app reads.
 
-**`issuer_metadata`** — aggregates `fct_discounts` by issuer to produce `last_scraped_at` (max `last_updated_at_date`) and `discount_count`. Used by the issuer status page.
+**`issuer_metadata`** — aggregates `fct_discounts` by `issuer_name` to produce `last_scraped_at` (max `last_updated_at_date`) and `discount_count`, excluding null issuers and empty groups. Used by the issuer status page.
 
 ---
 
@@ -333,21 +361,18 @@ A `cutoff_date` dbt variable can be passed at run time to simulate historical lo
 
 Tests are layered to match each layer's responsibility.
 
-**Intermediate** — validates that mandatory fields are populated, business logic holds, and the deduplication strategy produces no duplicates:
+**Staging** — the two business-rule expression tests described above (tolerant up to 50 rows), plus `not_null` on most columns, `discount_rate` between 0–1, non-negative amounts/installment counts, and two custom generic tests: `valid_days_array` (every element in `discount_valid_days_list` is 0–6) and `non_empty_array` (`discount_payment_methods_list` isn't empty).
+
+**Intermediate** — validates that mandatory fields are populated and the deduplication strategy produces no duplicates:
+- The two business-rule expressions are re-asserted on `int_unioned_and_renamed_discounts` (here as ordinary tests with no warn/error tolerance, since by this point they're supposed to already be filtered out — a failure here means the filter and the test have drifted apart)
 - `discount_id` is `not_null` and `unique` on `int_source_deduped_discounts` (no duplicate scrapes survive)
-- `merchant_category_clean` is `not_null` and must not equal `'Sin categorizar'` on `int_normalized_discounts` (`dbt_expectations.expect_column_values_to_not_be_in_set`) — ensures every category is covered by either `merchant_category_override` or `merchant_category_mapping`
 - `discount_content_hash` is `not_null` and `unique` on `int_business_deduped_discounts` (no business-level duplicates)
-- `discount_rate` between 0–1; `discount_no_interest_installment_qty` ≥ 0
-- `discount_end_date >= discount_start_date` (`dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B`)
-- All date and boolean fields `not_null`
-- `valid_days_list` integers are all in 0–6 (custom singular test)
+- `merchant_category_clean` is `not_null` and must not equal `'Sin categorizar'` on `int_normalized_discounts` (`dbt_expectations.expect_column_values_to_not_be_in_set`) — ensures every category is covered by either seed
 
-**Analytics — core** — validates that dimensional modelling is applied correctly:
-- `dim_issuers.id` and `dim_merchants.id` are `not_null` and `unique`
+**Analytics — core**:
 - `fct_discounts.id` is `not_null` and `unique`
-- `fct_discounts.issuer_id` and `fct_discounts.merchant_id` are `not_null` and pass `relationships` tests against their respective dimension tables — every fact row resolves to a known dimension member
 
-**Analytics — streamlit** — reconciliation tests ensuring the streamlit layer stays consistent with the core entities it is built from:
+**Analytics — streamlit** — a reconciliation test ensuring the streamlit layer stays consistent with the fact table it's built from:
 - `issuer_metadata_recon_check` cross-joins the total row count in `fct_discounts` against the sum of `discount_count` across all rows in `issuer_metadata` and fails if they differ
 
 ---
@@ -705,7 +730,7 @@ Declared in [terraform/deploy.tf](terraform/deploy.tf), separate from the pipeli
 | ↳ | | `roles/bigquery.dataEditor` | Project | Read/write BigQuery during CI build — intended for `dev_*` only, see tech debt below |
 | ↳ | | `roles/storage.objectViewer` | Project | Read GCS for the `raw_discounts` external table |
 
-**Known tech debt:** `dbt-ci-sa`'s `bigquery.dataEditor` grant is project-scoped, not limited to `dev_dbt_staged` / `dev_dbt_analytics` — meaning IAM does not currently prevent the CI job from writing to the `prod_*` datasets, only the `ci` target's `dataset: dev` setting does. The grant was widened during setup to unblock dbt trying to create a `dev` dataset for seeds that had no explicit schema assigned — the more correct fix would have been assigning those seeds `+schema: dbt_staged` so they land in `dev_dbt_staged` like everything else, rather than broadening the IAM grant. Narrowing this to dataset-level `google_bigquery_dataset_iam_member` bindings (the pattern already used for the Streamlit SA in §9) is still pending.
+**Known tech debt:** `dbt-ci-sa`'s `bigquery.dataEditor` grant is project-scoped, not limited to `dev_dbt_staged` / `dev_dbt_analytics` — meaning IAM does not currently prevent the CI job from writing to the `prod_*` datasets, only the `ci` target's `dataset: dev` setting does. Seeds are configured with an explicit `+dataset: dbt_seeds` in [dbt_project.yml](discount_tracker_dbt/dbt_project.yml) (so they resolve to `dev_dbt_seeds` / `prod_dbt_seeds`), but unlike every other dataset in [storage.tf](terraform/storage.tf), `dev_dbt_seeds` / `prod_dbt_seeds` are not pre-declared in Terraform — dbt has to auto-create them on first `dbt seed`/`dbt build`, which requires project-level dataset-creation rights and is why the grant was widened rather than scoped to a dataset. The narrower fix is to declare `dev_dbt_seeds` / `prod_dbt_seeds` in `storage.tf` like the other datasets, then replace this project-level grant with dataset-level `google_bigquery_dataset_iam_member` bindings scoped to just the `dev_*` datasets (the pattern already used for the Streamlit SA in §9).
 
 ### GitHub Actions secrets and variables
 
