@@ -2,43 +2,24 @@
 
 Discount Tracker is a platform that helps track discounts for different banks and other issuing entities in Argentina, implementing a full ELT cloud data pipeline. It scrapes live discount data from various sources, standardizes and validates it using dbt, and serves the curated result in a [Streamlit Dashboard](https://catalogo-de-descuentos.streamlit.app/).
 
-> NOTE: this was my submission for the 2026 edition of the [Data Engineering Zoomcamp](https://datatalks.club/blog/data-engineering-zoomcamp.html) (DataTalksClub) capstone project. As such, it's not intended to be an extensive catalog of discounts available across all entities in Argentina, but rather a quick prototype to showcase tools and concepts learned.
+![alt text](resources/image.png)
 
 > NOTE: The UI is in Spanish because the target audience is in Argentina. Browser translation usually works well if you want to inspect it in another language.
-
-![alt text](resources/image.png)
 
 ## Overview
 
 The repository is organized around three clear layers: Extraction + Loading, Transformation and Presentation.
 
- ```text
-┌──────────────────────────────┐
-│ Scrapy spiders               │
-│ - crawl issuer websites      │
-│ - extract promotions         │
-└──────────────┬───────────────┘
-			   │ raw JSONL
-			   v
-┌──────────────────────────────┐
-│ GCS landing zone             │
-│ - stores raw scraped files   │
-└──────────────┬───────────────┘
-			   │ external table
-			   v
-┌──────────────────────────────┐
-│ BigQuery + dbt               │
-│ - staging and intermediate   │
-│ - analytics models           │
-│ - data quality tests         │
-└──────────────┬───────────────┘
-			   │ curated models
-			   v
-┌──────────────────────────────┐
-│ Streamlit dashboard          │
-│ - charts and filters         │
-│ - issuer status view         │
-└──────────────────────────────┘
+```mermaid
+flowchart TD
+    Scrapy["Scrapy spiders\ncrawl issuer sites · extract promotions"]
+    GCS["GCS landing zone\nstores raw scraped files"]
+    BQ["BigQuery + dbt\nstaging & intermediate · analytics models · data quality tests"]
+    Streamlit["Streamlit dashboard\ncharts & filters · issuer status view"]
+
+    Scrapy -- "raw JSONL" --> GCS
+    GCS -- "external table" --> BQ
+    BQ -- "curated models" --> Streamlit
 ```
 
 ## How the system works
@@ -54,7 +35,7 @@ The repository is organized around three clear layers: Extraction + Loading, Tra
 
 ### Scraping
 
-The scraper lives in [discount_tracker_scrapy](discount_tracker_scrapy). It contains the Scrapy project, spiders, pipelines, and runtime settings for collecting issuer promotions and sending raw output to object storage.
+The scraper lives in [discount_tracker_scrapy](discount_tracker_scrapy). It contains the Scrapy project, spiders, pipelines, and runtime settings for collecting issuer promotions and sending raw output to object storage. One spider per active entity is implemented.
 
 The active scraper configuration is centered in [discount_tracker_scrapy/settings.py](discount_tracker_scrapy/settings.py). It expects `GCP_PROJECT_ID`, `GCS_BUCKET`, and `STORAGE_BACKEND` at runtime.
 
@@ -62,15 +43,14 @@ The active scraper configuration is centered in [discount_tracker_scrapy/setting
 
 The dbt project lives in [discount_tracker_dbt](discount_tracker_dbt). It defines the warehouse model layers and the tests that enforce data quality.
 
-Key parts of the dbt layer are:
+Models are organized in a medallion-style layering:
 
-- [discount_tracker_dbt/dbt_project.yml](discount_tracker_dbt/dbt_project.yml) for model structure and dataset routing
-- [discount_tracker_dbt/models/intermediate/int_joined_discounts.sql](discount_tracker_dbt/models/intermediate/int_joined_discounts.sql) for the cleaned promotion join
-- [discount_tracker_dbt/models/analytics/fct_discounts.sql](discount_tracker_dbt/models/analytics/fct_discounts.sql) for the main fact table
-- [discount_tracker_dbt/models/analytics/_analytics_models.yml](discount_tracker_dbt/models/analytics/_analytics_models.yml) for model contracts and tests
-- [discount_tracker_dbt/models/analytics/streamlit/streamlit_data.sql](discount_tracker_dbt/models/analytics/streamlit/streamlit_data.sql) for the dashboard-facing dataset
+- **[sources](discount_tracker_dbt/models/staging/sources.yml)** — the `raw_discounts` BigQuery external table over the GCS bucket, hive-partitioned by spider name and scrape date. One row per scraped record, holding the raw JSON payload.
+- **[staging](discount_tracker_dbt/models/staging/)** — one model per entity, parsing and normalizing fields out of the raw payload.
+- **[intermediate](discount_tracker_dbt/models/intermediate/)** — consolidates discounts across sources, applying filtering, renaming, and deduplication (source- and business-level).
+- **[analytics/core](discount_tracker_dbt/models/analytics/core/)** — the curated data layer, served via `fct_discounts`.
+- **[analytics/streamlit](discount_tracker_dbt/models/analytics/streamlit/)** — presentation layer consumed by the Streamlit app.
 
-The project uses dbt packages for shared macros and expectations, so the warehouse layer stays compact while still having reusable validation logic.
 
 ### Presentation
 
@@ -78,10 +58,10 @@ The dashboard lives in [discount_tracker_streamlit/app.py](discount_tracker_stre
 
 It connects to BigQuery using a service account from `st.secrets`, then loads curated SQL queries from [discount_tracker_streamlit/utils/queries](discount_tracker_streamlit/utils/queries) and renders:
 
-- a discounts explorer page
+- a discounts guided search page
 - a discount issuer status view with scrape freshness and counts
 
-The Streamlit app keeps its own runtime dependencies in [discount_tracker_streamlit/requirements.txt](discount_tracker_streamlit/requirements.txt) because for easier hosting on Streamlit Cloud.
+The Streamlit app keeps its own runtime dependencies in [discount_tracker_streamlit/requirements.txt](discount_tracker_streamlit/requirements.txt) for easier hosting on Streamlit Cloud.
 
 ### Infrastructure
 
@@ -95,17 +75,21 @@ This is where the deployment boundary is enforced:
 - dbt jobs need BigQuery access and read access to the raw landing zone
 - the workflow service account only needs permission to trigger and observe jobs
 
+### CI/CD
+
+Two GitHub Actions pipelines ([.github/workflows/](.github/workflows/)) test and deploy the scrapy and dbt components independently on every push to `main`: run the relevant tests (real spider crawls for scrapy, `dbt build --target ci` against a dev dataset for dbt), then on a successful push to `main` build and push a Docker image and roll it out to the corresponding Cloud Run job. See [ARCHITECTURE.md §10](ARCHITECTURE.md#10-cicd) for the full pipeline breakdown.
+
 ## Key design decisions
 
 - One repository, multiple runtimes. The repo keeps the scraper, warehouse logic, and dashboard together so the data flow stays visible, but each runtime has a clear boundary.
-- GCS plus BigQuery instead of a local database. Raw files land in object storage, and BigQuery is the analytical store. That fits the cloud workflow better than a local Postgres-centric setup.
+- Raw files land in object storage (GCS) and are exposed to BigQuery via external table. This provides flexibility in case the parsing logic changes and allows the scraper to focus exclusively on extraction.
 - Hive partitioning on the raw external table keeps reads focused on the scraped date partitions that matter, instead of forcing every query to scan the full landing zone.
-- dbt models use incremental materializations where the data is growing steadily, which keeps repeated builds fast and makes warehouse updates cheaper to run.
-- dbt also implements a medallion-style structure: raw data is exposed through the bronze landing zone, transformed into silver staging and intermediate models, and published as gold analytics models for the dashboard.
-- dbt tests and dbt-expectations rules enforce basic quality checks such as not-null, uniqueness, valid ranges, and date ordering before the dashboard ever sees the data.
+- dbt implements a medallion-style structure: raw data is parsed on the bronze (staging) layer, consolidated and validated step by step on silver (intermediate), and published as gold (analytics/core, analytics/streamlit) models for the dashboard. There's no separate dimensional layer — the fact table carries issuer and merchant category as plain columns rather than joining out to dimension tables, since the data volume doesn't justify the extra indirection.
+- dbt tests are applied throughout the pipeline, layer by layer: source tests validate incoming payload structure; staging tests validate parsing output and core business rules; intermediate tests confirm deduplication and category-resolution logic hold; analytics tests confirm the fact table and its streamlit-facing views stay consistent with each other.
 - Streamlit reads curated data only. The app is intentionally presentation-only, so it stays lightweight and easier to run locally or deploy separately.
 - Terraform owns the cloud shape. Infrastructure, IAM, datasets, and Cloud Run jobs are declared as code so the environment can be recreated consistently.
 - Scrapy and dbt runners each install only the required dependencies, keeping docker image size as low as possible.
+- CI/CD deploys are gated on tests passing and only run on a direct push to `main` — pull requests run tests but never deploy.
 
 ## Setup
 
@@ -126,6 +110,8 @@ Terraform also expects the corresponding inputs:
 
 - `TF_VAR_gcp_project_id`
 - `TF_VAR_gcp_region`
+- `TF_VAR_owner_email`
+- `TF_VAR_notification_email`
 
 The Streamlit app uses `st.secrets` for its BigQuery service account instead of environment-based auth.
 
@@ -137,10 +123,16 @@ discount-tracker/
 ├── discount_tracker_dbt/         # dbt project, packages, models, tests
 ├── discount_tracker_streamlit/   # Streamlit dashboard app and app-local assets
 ├── terraform/                    # GCP infrastructure as code
+├── .github/workflows/            # CI/CD pipelines (test + deploy, scrapy and dbt)
+├── tests/                        # pytest suite (scrapy spider output validation)
+├── docs/                         # supplementary guides (cloud setup, ...)
+├── scripts/                      # operational scripts (e.g. Cloud Workflow integration test suite)
+├── resources/                    # static assets referenced from docs (e.g. this README)
 ├── Dockerfile                    # container build for the non-UI runtime paths
 ├── pyproject.toml                # root project metadata and shared dependency groups
 ├── uv.lock                       # locked Python dependencies
 ├── scrapy.cfg                    # Scrapy entrypoint configuration
+├── ARCHITECTURE.md               # technical deep-dive: internals, GCP resources, IAM, CI/CD
 └── README.md                     # project overview and setup guide
 ```
 
@@ -154,6 +146,5 @@ discount-tracker/
 | Storage | Google Cloud Storage |
 | Transformation | dbt |
 | Dashboard | Streamlit |
-| Visualization | Plotly |
 | IaC | Terraform |
-| Runtime orchestration | Google Cloud Run Jobs + Workflows |
+| Runtime orchestration | Google Cloud Scheduler + Workflows + Run Jobs |
