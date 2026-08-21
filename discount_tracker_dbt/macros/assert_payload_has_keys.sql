@@ -7,7 +7,7 @@ and {{ where_clause }}
   and (
     {% for key in expected_keys %}
         {# Checks if key is missing or extracts as NULL #}
-        json_type(json_query({{column_name}}, '{{ key }}')) is null
+        json_type(json_query({{column_name}}, '$.{{ key }}')) is null
         {% if not loop.last %} or {% endif %}
     {% endfor %}
   )

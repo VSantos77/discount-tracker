@@ -33,7 +33,7 @@ jobs:
             - 'uv.lock'
             - 'Dockerfile'
             - 'tests/spiders/**'
-            - 'schemas/spider_required_keys.yaml'
+            - 'discount_tracker_dbt/dbt_project.yml'
           scrapy_deploy:
             - 'discount_tracker_scrapy/**'
             - 'pyproject.toml'

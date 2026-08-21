@@ -5,16 +5,15 @@ from pathlib import Path
 import pytest
 import yaml
 
-SCHEMA_PATH = Path(__file__).parent.parent.parent / "schemas" / "spider_required_keys.yaml"
+DBT_PROJECT_PATH = Path(__file__).parent.parent.parent / "discount_tracker_dbt" / "dbt_project.yml"
 
 def load_schema() -> dict:
-    with open(SCHEMA_PATH) as f:
-        return yaml.safe_load(f)
-
+    with open(DBT_PROJECT_PATH) as f:
+        dbt_project = yaml.safe_load(f)
+    return dbt_project["vars"]
 
 def get_spider_names() -> list[str]:
     return list(load_schema().keys())
-
 
 def load_required_keys(spider_name: str) -> list[str]:
     return load_schema()[spider_name]

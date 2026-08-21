@@ -42,8 +42,11 @@ ENTRYPOINT ["scrapy"]
 FROM base AS dbt
 # Copy the specific dbt venv
 COPY --from=dbt-builder /app/.venv /app/.venv
-# Copy dbt code only
+# Copy dbt code
 COPY discount_tracker_dbt/ ./discount_tracker_dbt/
-WORKDIR ./discount_tracker_dbt/
+
+WORKDIR /app/discount_tracker_dbt
+
 RUN dbt deps
+
 ENTRYPOINT ["dbt"]

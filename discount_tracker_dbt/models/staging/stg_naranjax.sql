@@ -12,15 +12,7 @@ valid_structure as (
     select *
     from source
     where
-        json_type(json_query(raw_payload, '$.id'))                   is not null
-        and json_type(json_query(raw_payload, '$.commerceName'))     is not null
-        and json_type(json_query(raw_payload, '$.benefitName'))      is not null
-        and json_type(json_query(raw_payload, '$.days'))             is not null
-        and json_type(json_query(raw_payload, '$.benefit'))          is not null
-        and json_type(json_query(raw_payload, '$.promotionDetails')) is not null
-        and json_type(json_query(raw_payload, '$.days.weekdaysApplied')) is not null
-        and json_type(json_query(raw_payload, '$.paymentMethods')) is not null
-
+        {{ json_keys_not_null('raw_payload', var('naranjax')) }}
 ),
 
 parsed as (
