@@ -1,5 +1,5 @@
 # .github/workflows/ci-dbt.yml
-name: CI dbt
+name: CI/CD dbt
 
 on:
   push:
