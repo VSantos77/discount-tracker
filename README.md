@@ -8,19 +8,7 @@ Discount Tracker ("Catalogo de Descuentos") is a platform that helps track disco
 
 ## Overview
 
-The repository is organized around three clear layers: Extraction + Loading, Transformation and Presentation.
-
-```mermaid
-flowchart TD
-    Scrapy["Scrapy spiders\ncrawl issuer sites · extract promotions"]
-    GCS["GCS landing zone\nstores raw scraped files"]
-    BQ["BigQuery + dbt\nstaging & intermediate · analytics models · data quality tests"]
-    Streamlit["Streamlit dashboard\ncharts & filters · issuer status view"]
-
-    Scrapy -- "raw JSONL" --> GCS
-    GCS -- "external table" --> BQ
-    BQ -- "curated models" --> Streamlit
-```
+<img width="801" height="446" alt="Discount Tracker - Architecture overview drawio" src="https://github.com/user-attachments/assets/94e0d6ef-a6e4-4609-89ad-30d392b0f54d" />
 
 ## How the system works
 
